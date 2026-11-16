@@ -21,7 +21,7 @@
  *                 false = 可以唔登入，以訪客身份玩
  *  （下面仲有 FIREBASE_CONFIG 要填）
  * ===================================================================== */
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyyn1eRYnxXW4bqK3f-0uJnlYizKm399lT8d4nYdJ-sXlNB4Sv3kTsjDOgyqypFzeUd/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzkGVfGScqtAOPDaLhQSZVrfVzkeH7_ui2x7oUVAMvmnxdDr1yGoPcurmRJBUBi65LB/exec";
 const REQUIRE_LOGIN = true;
 </script>
 <!-- Firebase（線上對戰房間） -->
@@ -735,13 +735,13 @@ const Auth = {
       await this.backendLogin(r.user);
     } catch(e){
       if (e && (e.code==='auth/popup-closed-by-user' || e.code==='auth/cancelled-popup-request')) return;
-      Pop.fire({ icon:'error', title:t('loginFail'), text: e && e.code==='auth/popup-blocked' ? t('popupBlocked') : String((e&&(e.code||e.message))||e) });
+      Pop.fire({ icon:'error', title:t('loginFail'), text: e && e.code==='auth/popup-blocked' ? t('popupBlocked') : String((e&&(e.code ? e.code+' '+(e.message||'') : e.message))||e) });
     }
   },
   async backendLogin(u){
     Pop.toast(t('signingIn'),'info');
     const res = await Remote.post('login', [await u.getIdToken(true)]);
-    if (!res || !res.ok || !res.session) throw new Error((res&&res.error)||'LOGIN');
+    if (!res || !res.ok || !res.session) throw new Error(((res&&res.error)||'LOGIN') + (res&&res.message ? '：'+res.message : ''));
     this.session=res.session; LS.set('junqi_session', res.session);
     FB.ready=false; FB.connecting=null;
     await App.applyBoot(res); this.renderBtn();
