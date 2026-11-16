@@ -15,23 +15,25 @@
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>
 /* =====================================================================
- *  ⚙️ GitHub 版設定（只需要改呢兩行）
+ *  ⚙️ GitHub 版設定
  *  GAS_URL：Apps Script「網頁應用程式」網址（以 /exec 結尾）
- *  GOOGLE_CLIENT_ID：Google 登入用嘅 OAuth 用戶端 ID（留空 = 所有人以訪客身份遊玩）
+ *  REQUIRE_LOGIN：true = 一定要用 Google 帳戶（Gmail）登入先可以玩
+ *                 false = 可以唔登入，以訪客身份玩
+ *  （下面仲有 FIREBASE_CONFIG 要填）
  * ===================================================================== */
 const GAS_URL = "";
-const GOOGLE_CLIENT_ID = "";
+const REQUIRE_LOGIN = true;
 </script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Firebase（線上對戰房間） -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 /* =====================================================================
- *  🔥 Firebase 設定（線上對戰房間用）
+ *  🔥 Firebase 設定（Google 登入 + 線上對戰房間）
  *  Firebase Console → 專案設定 → 一般 → 你的應用程式（網頁 </>）→ 複製 firebaseConfig 貼喺下面
- *  記得：Authentication 開啟「匿名 Anonymous」；Realtime Database 貼上 README 入面嘅規則
+ *  記得：Authentication 開啟「Google」（同「匿名」）；授權網域加入 你的用戶名.github.io；
+ *        Realtime Database 貼上 README 入面嘅規則
  * ===================================================================== */
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyB_hFo54PINLmH2hSGu7Ks_-3Rx7HmYfmU",
@@ -179,6 +181,19 @@ const FB_ROOT = "junqi";
   <div class="lbl" data-i18n="loading">正在偵測登入身份…</div>
 </section>
 
+<!-- ================= 登入 ================= -->
+<section id="screen-login" class="scr" style="align-items:center;justify-content:center;padding:20px">
+  <div class="glass" style="max-width:420px;width:100%;padding:30px 26px;text-align:center;display:flex;flex-direction:column;gap:16px;align-items:center">
+    <div style="width:70px;height:70px;border-radius:20px;display:grid;place-items:center;font-size:36px;background:linear-gradient(135deg,#06b6d4,#7c3aed);box-shadow:0 0 30px rgba(34,211,238,.5)">⚑</div>
+    <div class="neon" style="font-size:30px" data-i18n="title">軍旗大戰</div>
+    <div class="lbl" data-i18n="loginLead">請用 Google 帳戶（Gmail）登入，戰績會自動儲存</div>
+    <button class="btn" style="padding:1em 1.4em;font-size:17px;width:100%" onclick="Auth.signIn()" data-i18n="loginBtn">🔐 使用 Google 帳戶登入</button>
+    <div class="lbl" style="opacity:.8;line-height:1.6" data-i18n="loginNote">名單內同學會自動識別班別、學號；其他人都可以用自己嘅 Gmail 登入。</div>
+    <button class="btn ghost sm" id="guestBtn" style="display:none" onclick="App.playAsGuest()" data-i18n="playGuest">以訪客身份遊玩</button>
+    <button class="btn ghost sm" onclick="UI.toggleLang()">繁 / EN</button>
+  </div>
+</section>
+
 <!-- ================= 主頁 ================= -->
 <section id="screen-home" class="scr">
   <div class="w-full max-w-5xl mx-auto px-4 py-4 flex flex-col gap-4" style="width:100%;max-width:1040px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:16px">
@@ -190,7 +205,7 @@ const FB_ROOT = "junqi";
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
         <span id="userChip" class="chip" style="max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
-        <div id="gsiBtn" style="display:none;align-items:center"></div>
+        <button class="btn sm" id="loginBtn" style="display:none" onclick="Auth.signIn()" data-i18n="loginShort">🔐 登入</button>
         <button class="btn ghost sm" id="logoutBtn" style="display:none" onclick="Auth.logout()" data-i18n="logout">登出</button>
         <button class="btn ghost sm" onclick="Snd.toggle()" id="homeSnd" title="SFX">🔊</button>
         <button class="btn ghost sm" onclick="Snd.toggleMusic()" id="homeMus" title="Music">🎵</button>
@@ -375,7 +390,10 @@ const I18N = {
     oppTurn:'對手回合', online:'🟢 在線', offline:'🔴 離線', claimWin:'對手離線，判我勝', backLobby:'返回大堂', leaveResign:'離開對局會當作認輸，確定？',
     oppLeft:'對手已離開對局', you2:'（你）', modeOnline:'線上', host:'房主',
     recordQ:'要記錄今次成績嗎？', recordText:'輸入電郵就可以記錄成績；唔需要可以直接跳過。', recordFor:'{name}：要記錄成績嗎？', skip:'跳過', recordBtn:'記錄成績', badEmail:'電郵格式唔啱', recorded:'成績已記錄 ✅',
-    guestLoginNote:'校內同學請按「使用 Google 帳戶登入」（學校帳戶），戰績會自動儲存；校外人士可直接以訪客身份遊玩，戰績存喺呢部裝置。',
+    guestLoginNote:'撳右上角「🔐 登入」用 Google 帳戶登入，戰績會自動儲存；唔登入都可以以訪客身份玩，戰績存喺呢部裝置。',
+    loginLead:'請用 Google 帳戶（Gmail）登入，戰績會自動儲存', loginBtn:'🔐 使用 Google 帳戶登入', loginShort:'🔐 登入',
+    loginNote:'名單內同學會自動識別班別、學號；其他人都可以用自己嘅 Gmail 登入。', playGuest:'以訪客身份遊玩',
+    popupBlocked:'登入視窗被封鎖，請允許彈出視窗後再試',
     logout:'登出', signingIn:'登入中…', loginFail:'登入失敗', sessionExpired:'登入已過期，請重新登入',
     externalTitle:'校外帳戶', externalText:'{email} 唔係學校帳戶，你可以照樣以訪客身份遊玩，戰績會存喺呢部裝置。',
     guestSaved:'訪客模式：戰績已儲存喺呢部裝置', namePh:'輸入名稱（可留空）',
@@ -439,7 +457,10 @@ const I18N = {
     oppTurn:'Opponent’s turn', online:'🟢 Online', offline:'🔴 Offline', claimWin:'Opponent offline — claim win', backLobby:'Back to lobby', leaveResign:'Leaving counts as resigning. Leave?',
     oppLeft:'Your opponent left the game', you2:' (you)', modeOnline:'Online', host:'Host',
     recordQ:'Save this result?', recordText:'Enter your email to save the result, or skip.', recordFor:'{name}: save this result?', skip:'Skip', recordBtn:'Save', badEmail:'Invalid email', recorded:'Result saved ✅',
-    guestLoginNote:'School students: tap “Sign in with Google” using your school account to save records. Visitors can play as guests (records stay on this device).',
+    guestLoginNote:'Tap “🔐 Sign in” (top right) to save your records with your Google account, or keep playing as a guest (records stay on this device).',
+    loginLead:'Sign in with your Google account (Gmail) — your records are saved automatically', loginBtn:'🔐 Sign in with Google', loginShort:'🔐 Sign in',
+    loginNote:'Students on the class list are recognised automatically; anyone else can sign in with their own Gmail.', playGuest:'Play as guest',
+    popupBlocked:'The sign-in window was blocked. Please allow pop-ups and try again',
     logout:'Sign out', signingIn:'Signing in…', loginFail:'Sign-in failed', sessionExpired:'Session expired, please sign in again',
     externalTitle:'Non-school account', externalText:'{email} is not a school account. You can still play as a guest; records stay on this device.',
     guestSaved:'Guest mode: result saved on this device', namePh:'Enter a name (optional)',
@@ -694,51 +715,50 @@ const Server = {
     if (!GAS_URL) return Mock[fn](...args);                                    // 示範模式（未設定後端）
     if (!Auth.session && fn!=='apiBootstrap' && fn!=='apiLog') return Mock[fn](...args); // 訪客：戰績存喺本機
     const res = await Remote.post(API_MAP[fn], args);
-    if (res && res.error==='AUTH_EXPIRED'){ Auth.expire(); return Mock[fn](...args); }
+    if (res && res.error==='AUTH_EXPIRED'){ if (await Auth.refresh()) return Remote.post(API_MAP[fn], args); return Mock[fn](...args); }
     return res;
   }
 };
 
-/* =========================== Google 登入（GitHub 版） =========================== */
+/* =========================== Google 登入（用 Firebase Authentication） =========================== */
 const Auth = {
-  session: LS.get('junqi_session',''), ready:false, tries:0,
-  enabled(){ return !!(GAS_URL && GOOGLE_CLIENT_ID); },
-  init(){
+  session: LS.get('junqi_session',''),
+  enabled(){ return !!(GAS_URL && FIREBASE_CONFIG.apiKey && window.firebase); },
+  app(){ if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG); return firebase; },
+  waitUser(){ return new Promise(res=>{ this.app(); const un=firebase.auth().onAuthStateChanged(u=>{ un(); res(u); }); }); },
+  googleUser(){ const u=this.enabled() && firebase.apps.length ? firebase.auth().currentUser : null; return u && !u.isAnonymous ? u : null; },
+  async signIn(){
     if (!this.enabled()) return;
-    const g = window.google && google.accounts && google.accounts.id;
-    if (!g){ if (++this.tries<40) setTimeout(()=>this.init(), 300); return; }
-    google.accounts.id.initialize({ client_id:GOOGLE_CLIENT_ID, callback:r=>this.onCredential(r), auto_select:true,
-      cancel_on_tap_outside:false, itp_support:true, use_fedcm_for_prompt:true, context:'signin' });
-    this.ready=true; this.renderBtn();
-    if (!this.session) google.accounts.id.prompt();     // 曾經登入過嘅校內用戶會自動登入
-  },
-  renderBtn(){
-    const el=$('#gsiBtn'), lo=$('#logoutBtn');
-    if (lo) lo.style.display = this.session ? '' : 'none';
-    if (!el) return; el.innerHTML='';
-    if (this.session || !this.ready){ el.style.display='none'; return; }
-    el.style.display='flex';
-    try { google.accounts.id.renderButton(el, { theme:'filled_black', size:'medium', shape:'pill', text:'signin_with', locale: LANG==='en'?'en':'zh-TW' }); } catch(e){}
-  },
-  async onCredential(resp){
     try {
-      Pop.toast(t('signingIn'),'info');
-      const res = await Remote.post('login', [resp.credential]);
-      if (res.session){ this.session=res.session; LS.set('junqi_session', res.session); await App.applyBoot(res); this.renderBtn(); return; }
-      if (res.external){ Pop.fire({ icon:'info', title:t('externalTitle'), text:t('externalText',{email:res.externalEmail||''}) }); return; }
-      throw new Error(res.error||'LOGIN');
-    } catch(e){ Pop.fire({ icon:'error', title:t('loginFail'), text:String(e.message||e) }); }
+      this.app(); const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt:'select_account' });
+      const r = await firebase.auth().signInWithPopup(p);
+      await this.backendLogin(r.user);
+    } catch(e){
+      if (e && (e.code==='auth/popup-closed-by-user' || e.code==='auth/cancelled-popup-request')) return;
+      Pop.fire({ icon:'error', title:t('loginFail'), text: e && e.code==='auth/popup-blocked' ? t('popupBlocked') : String((e&&(e.code||e.message))||e) });
+    }
   },
-  expire(){
-    this.session=''; LS.set('junqi_session','');
-    App.user={ email:'', name:'', isGuest:true }; App.roster=[]; App.save=Local.get('guest'); App.renderHome();
-    Pop.toast(t('sessionExpired'),'warning'); this.renderBtn(); if (this.ready) google.accounts.id.prompt();
+  async backendLogin(u){
+    Pop.toast(t('signingIn'),'info');
+    const res = await Remote.post('login', [await u.getIdToken(true)]);
+    if (!res || !res.ok || !res.session) throw new Error((res&&res.error)||'LOGIN');
+    this.session=res.session; LS.set('junqi_session', res.session);
+    FB.ready=false; FB.connecting=null;
+    await App.applyBoot(res); this.renderBtn();
+  },
+  async refresh(){ const u=this.googleUser(); if (!u) { this.session=''; LS.set('junqi_session',''); return false; }
+    try { const res=await Remote.post('login',[await u.getIdToken(true)]); if (res.ok && res.session){ this.session=res.session; LS.set('junqi_session',res.session); return true; } } catch(e){}
+    return false; },
+  renderBtn(){
+    const lo=$('#logoutBtn'), li=$('#loginBtn');
+    if (lo) lo.style.display = this.session ? '' : 'none';
+    if (li) li.style.display = (!this.session && this.enabled()) ? '' : 'none';
   },
   logout(){
     Remote.post('logout',[]).catch(()=>{});
     this.session=''; LS.set('junqi_session','');
-    try { google.accounts.id.disableAutoSelect(); } catch(e){}
-    location.reload();
+    const done=()=>location.reload();
+    try { firebase.auth().signOut().then(done, done); } catch(e){ done(); }
   }
 };
 
@@ -1370,8 +1390,9 @@ const FB = {
     this.connecting = (async()=>{
       try {
         if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-        const cred = await firebase.auth().signInAnonymously();      // 匿名登入：用戶完全無感
-        this.uid = cred.user.uid; this.db = firebase.database(); this.ready = true; return true;
+        let u = firebase.auth().currentUser || await Auth.waitUser();          // 已用 Google 登入就直接用
+        if (!u) u = (await firebase.auth().signInAnonymously()).user;          // 訪客：背景匿名登入，用戶無感
+        this.uid = u.uid; this.db = firebase.database(); this.ready = true; return true;
       } catch(e){ this.err = e; console.warn('Firebase', e); this.connecting=null; return false; }
     })();
     return this.connecting;
@@ -1536,11 +1557,6 @@ const App = {
   async boot(){
     Board.init();
     LANG = LS.get('junqi_lang','zh'); UI.applyLang();
-    let res;
-    try { res = await Server.call('apiBootstrap'); }
-    catch(e){ console.error(e); res = { ok:true, user:{email:'',name:'',isGuest:true}, save:null, roster:[] }; Pop.toast(t('netErr'),'error'); }
-    if (!res.ok){ $('#screen-loading').innerHTML = `<div class="glass" style="padding:24px;max-width:420px;text-align:center"><div style="font-size:40px">🔒</div><b>Access denied</b><div class="lbl">${esc(res.email||'')}</div></div>`; return; }
-    if (res.expired){ Auth.session=''; LS.set('junqi_session',''); }
     document.querySelectorAll('#diffSeg button').forEach(b=> b.onclick=()=>{ this.difficulty=b.dataset.v; this.renderHome(); this.saveSettings(); });
     document.querySelectorAll('#visSeg button').forEach(b=> b.onclick=()=>{ this.vis=b.dataset.v; this.fillPvp(true); });
     document.querySelectorAll('#aiRuleSeg button').forEach(b=> b.onclick=()=>{ this.aiRule=b.dataset.v; this.renderHome(); this.saveSettings(); });
@@ -1552,8 +1568,27 @@ const App = {
       const el=e.target.closest('button,select,.card-mode'); if (!el || el.id==='homeSnd' || (el.getAttribute('onclick')||'').includes('Snd.toggle()')) return;
       if (el.closest('.seg')) Snd.tab(); else Snd.click();
     }, true);
-    await this.applyBoot(res);
-    Auth.init();
+    // ---- 登入流程 ----
+    if (Auth.enabled()){
+      const u = await Auth.waitUser();
+      if (u && !u.isAnonymous){
+        try {
+          if (Auth.session){ const r=await Remote.post('bootstrap',[]); if (r && r.ok && !r.expired && r.user && !r.user.isGuest){ await this.applyBoot(r); Auth.renderBtn(); return; } }
+          await Auth.backendLogin(u); return;
+        } catch(e){ console.warn('login', e); }
+      }
+      Auth.session=''; LS.set('junqi_session','');
+      if (REQUIRE_LOGIN){ $('#guestBtn').style.display='none'; UI.show('login'); return; }
+    }
+    return this.playAsGuest();
+  },
+  async playAsGuest(){
+    let res;
+    try { res = await Server.call('apiBootstrap'); }
+    catch(e){ console.error(e); res = { ok:true, user:{email:'',name:'',isGuest:true}, save:null, roster:[] }; Pop.toast(t('netErr'),'error'); }
+    if (!res.ok){ $('#screen-loading').innerHTML = `<div class="glass" style="padding:24px;max-width:420px;text-align:center"><div style="font-size:40px">🔒</div><b>Access denied</b><div class="lbl">${esc(res.email||'')}</div></div>`; return; }
+    if (res.expired){ Auth.session=''; LS.set('junqi_session',''); }
+    await this.applyBoot(res); Auth.renderBtn();
   },
   async applyBoot(res){
     this.demo = !!res.demo; this.user = res.user; this.roster = res.roster||[];
