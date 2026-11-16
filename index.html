@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<base target="_top">
+<title>軍旗大戰 Junqi Arena</title>
+
+<!-- ===== CDN 庫 ===== -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  if (window.tailwind) tailwind.config = { theme: { extend: { fontFamily: { game: ['"Noto Sans HK"', '"PingFang HK"', '"Microsoft JhengHei"', 'system-ui', 'sans-serif'] } } } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script>
+/* =====================================================================
+ *  ⚙️ GitHub 版設定（只需要改呢兩行）
+ *  GAS_URL：Apps Script「網頁應用程式」網址（以 /exec 結尾）
+ *  GOOGLE_CLIENT_ID：Google 登入用嘅 OAuth 用戶端 ID（留空 = 所有人以訪客身份遊玩）
+ * ===================================================================== */
+const GAS_URL = "";
+const GOOGLE_CLIENT_ID = "";
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Firebase（線上對戰房間） -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* =====================================================================
+ *  🔥 Firebase 設定（線上對戰房間用）
+ *  Firebase Console → 專案設定 → 一般 → 你的應用程式（網頁 </>）→ 複製 firebaseConfig 貼喺下面
+ *  記得：Authentication 開啟「匿名 Anonymous」；Realtime Database 貼上 README 入面嘅規則
+ * ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",          // ← 必填，例如 https://xxxx-default-rtdb.asia-southeast1.firebasedatabase.app
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+const FB_ROOT = "junqi";
+</script>
+
+<style>
+  :root{
+    --bg:#05060f; --ink:#e6edf7; --mute:#8b98b8;
+    --cyan:#22d3ee; --blue:#3b82f6; --pink:#f43f5e; --violet:#8b5cf6; --lime:#a3e635; --gold:#fbbf24;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:"Noto Sans HK","PingFang HK","Microsoft JhengHei",system-ui,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+  input,select,textarea{-webkit-user-select:text;user-select:text}
+  body::before{content:"";position:fixed;inset:0;z-index:-2;
+    background:
+      radial-gradient(60vmax 60vmax at 10% 0%, rgba(139,92,246,.5), transparent 60%),
+      radial-gradient(55vmax 55vmax at 100% 100%, rgba(34,211,238,.38), transparent 60%),
+      radial-gradient(40vmax 40vmax at 90% 10%, rgba(244,63,94,.18), transparent 60%),
+      linear-gradient(160deg,#060816,#0a0d22 50%,#05060f)}
+  body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.25;
+    background-image:linear-gradient(rgba(34,211,238,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.08) 1px,transparent 1px);
+    background-size:40px 40px;mask-image:radial-gradient(circle at 50% 40%,#000 30%,transparent 80%)}
+
+  .scr{position:fixed;inset:0;display:none;flex-direction:column;overflow:auto}
+  .scr.on{display:flex}
+  .glass{background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.12);
+    -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-radius:20px;
+    box-shadow:0 10px 40px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06)}
+  .neon{font-weight:900;letter-spacing:.06em;
+    background:linear-gradient(90deg,#67e8f9,#a78bfa,#fb7185);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 12px rgba(103,232,249,.35))}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.4em;border:0;cursor:pointer;
+    padding:.7em 1.15em;border-radius:14px;font-weight:800;font-size:15px;color:#fff;
+    background:linear-gradient(135deg,#0891b2,#6d28d9);box-shadow:0 0 0 1px rgba(255,255,255,.12) inset,0 6px 20px rgba(34,211,238,.25);
+    transition:transform .12s, filter .12s, opacity .12s;font-family:inherit;white-space:nowrap}
+  .btn:active{transform:scale(.96)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.4;pointer-events:none}
+  .btn.ghost{background:rgba(255,255,255,.08);box-shadow:0 0 0 1px rgba(255,255,255,.15) inset}
+  .btn.red{background:linear-gradient(135deg,#e11d48,#9f1239);box-shadow:0 6px 20px rgba(244,63,94,.3)}
+  .btn.lime{background:linear-gradient(135deg,#16a34a,#0d9488);box-shadow:0 6px 20px rgba(163,230,53,.25)}
+  .btn.sm{padding:.45em .8em;font-size:13px;border-radius:11px}
+  .chip{display:inline-flex;align-items:center;gap:.35em;padding:.3em .7em;border-radius:999px;font-size:12px;font-weight:700;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+  .seg{display:flex;background:rgba(0,0,0,.3);border-radius:12px;padding:3px;gap:3px}
+  .seg button{flex:1;border:0;background:transparent;color:var(--mute);font-weight:800;padding:.5em .6em;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px}
+  .seg button.on{background:linear-gradient(135deg,rgba(34,211,238,.35),rgba(139,92,246,.35));color:#fff;box-shadow:0 0 12px rgba(34,211,238,.3)}
+  .card-mode{cursor:pointer;transition:transform .15s, box-shadow .15s}
+  .card-mode:hover{transform:translateY(-3px);box-shadow:0 0 0 1px rgba(34,211,238,.4),0 14px 40px rgba(34,211,238,.15)}
+  .lbl{font-size:12px;color:var(--mute);font-weight:700;letter-spacing:.05em}
+  select.inp,input.inp{width:100%;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:12px;padding:.6em .7em;font-size:15px;font-family:inherit}
+  select.inp option{background:#0b1020}
+
+  /* ===== 遊戲畫面 ===== */
+  #screen-game{overflow:hidden}
+  .gwrap{flex:1;display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr);gap:8px;padding:8px;padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom));min-height:0}
+  @media (orientation:landscape) and (min-width:720px){
+    .gwrap{grid-template-rows:1fr;grid-template-columns:minmax(210px,290px) minmax(0,1fr) minmax(210px,290px)}
+    .gwrap .panel{align-self:stretch}
+    .panel .p-btns{flex-direction:column;align-items:stretch}
+  }
+  .panel{padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0;transition:box-shadow .25s,border-color .25s}
+  .panel.turn{border-color:rgba(34,211,238,.6);box-shadow:0 0 0 1px rgba(34,211,238,.35),0 0 30px rgba(34,211,238,.25)}
+  .panel.B.turn{border-color:rgba(244,63,94,.6);box-shadow:0 0 0 1px rgba(244,63,94,.35),0 0 30px rgba(244,63,94,.25)}
+  .panel.flip{transform:rotate(180deg)}
+  .p-head{display:flex;align-items:center;gap:10px}
+  .p-dot{width:34px;height:34px;border-radius:11px;flex:none;display:grid;place-items:center;font-weight:900;font-size:16px}
+  .A .p-dot{background:linear-gradient(135deg,#22d3ee,#1d4ed8);box-shadow:0 0 14px rgba(34,211,238,.6)}
+  .B .p-dot{background:linear-gradient(135deg,#fb7185,#9f1239);box-shadow:0 0 14px rgba(244,63,94,.6)}
+  .p-name{font-weight:900;font-size:15px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .p-sub{font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .p-turn{margin-left:auto;font-size:12px;font-weight:900;padding:.3em .7em;border-radius:999px;background:rgba(255,255,255,.07);color:var(--mute);white-space:nowrap}
+  .turn .p-turn{background:linear-gradient(135deg,#06b6d4,#7c3aed);color:#fff;animation:pulse 1.4s infinite}
+  .B.turn .p-turn{background:linear-gradient(135deg,#f43f5e,#7c3aed)}
+  @keyframes pulse{50%{filter:brightness(1.35)}}
+  .p-info{display:flex;flex-wrap:wrap;gap:6px;font-size:12px}
+  .p-btns{display:flex;gap:6px;flex-wrap:wrap}
+  .p-btns .btn{flex:1 1 auto}
+  .p-dead{display:flex;flex-wrap:wrap;align-items:center;gap:3px;min-height:0;line-height:1}
+  .p-dead .dl{font-size:10.5px;color:var(--mute);font-weight:800;margin-right:2px}
+  .p-dead .dp{font-size:10.5px;font-weight:900;padding:3px 5px;border-radius:5px;color:#fff;opacity:.92;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+  .p-dead .dp.A{background:linear-gradient(180deg,#38bdf8,#1e3a8a)}
+  .p-dead .dp.B{background:linear-gradient(180deg,#fb7185,#7f1d1d)}
+  .p-dead .dp i{font-style:normal;opacity:.8;margin-left:1px}
+  @media (orientation:portrait),(max-width:719px){
+    .panel{padding:8px 10px;gap:6px}
+  }
+  #boardBox{position:relative;min-height:0;min-width:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  #board{display:block;touch-action:none;border-radius:18px}
+  .p-tools{display:flex;gap:5px;flex:none}
+  .p-log{display:none;flex-direction:column;gap:4px;font-size:12px;overflow:auto;min-height:0;flex:1}
+  .p-log div{padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.04);border-left:3px solid #22d3ee}
+  .p-log div.bad{border-left-color:#f43f5e}.p-log div.tie{border-left-color:#fbbf24}
+  @media (orientation:landscape) and (min-width:720px){ .p-log{display:flex} .p-head{flex-wrap:wrap} .p-tools{width:100%;order:-1;justify-content:flex-end} }
+  .p-tools button{width:32px;height:32px;border-radius:11px;border:1px solid rgba(255,255,255,.16);background:rgba(10,14,35,.7);color:#fff;font-weight:900;font-size:13px;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-family:inherit}
+  .toast-wrap{position:absolute;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:6}
+  .toast{padding:.6em 1em;border-radius:14px;font-weight:900;font-size:15px;background:rgba(8,12,30,.88);border:1px solid rgba(34,211,238,.45);box-shadow:0 0 24px rgba(34,211,238,.3);
+    opacity:0;transform:scale(.85);transition:opacity .2s, transform .2s;max-width:92%;text-align:center}
+  .toast.show{opacity:1;transform:scale(1)}
+  .toast.bad{border-color:rgba(244,63,94,.6);box-shadow:0 0 24px rgba(244,63,94,.35)}
+  .toast.tie{border-color:rgba(251,191,36,.6);box-shadow:0 0 24px rgba(251,191,36,.3)}
+  .peek{touch-action:none}
+  .rot180{transform:rotate(180deg)}
+
+  /* SweetAlert2 深色毛玻璃 */
+  .swal2-popup.swal-glass{background:rgba(12,16,38,.82)!important;color:var(--ink)!important;border:1px solid rgba(255,255,255,.14);border-radius:22px!important;
+    -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:0 0 0 1px rgba(34,211,238,.15),0 20px 60px rgba(0,0,0,.6)}
+  .swal2-popup.swal-glass .swal2-title{color:#fff}
+  .swal2-popup.swal-glass .swal2-html-container{color:#cbd5e1}
+  .swal2-container.swal2-backdrop-show{background:rgba(2,4,12,.6)!important}
+  .rules h4{color:#67e8f9;font-weight:900;margin:.8em 0 .3em}
+  .rules li{margin:.15em 0}
+  .rules{text-align:left;font-size:14px;line-height:1.6}
+  .rk{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;font-size:12.5px}
+  .rk div{background:rgba(255,255,255,.06);border-radius:8px;padding:3px 6px}
+  /* 後備彈窗（如 SweetAlert2 載入失敗） */
+  .fb-mask{position:fixed;inset:0;background:rgba(2,4,12,.65);display:grid;place-items:center;z-index:9999;padding:16px}
+  .fb-box{max-width:600px;width:100%;max-height:88vh;overflow:auto;padding:22px;text-align:center}
+  .hist-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+  .res-win{color:#a3e635}.res-lose{color:#fb7185}.res-draw{color:#fbbf24}
+  .stat{padding:12px;text-align:center}
+  .stat b{display:block;font-size:24px;font-weight:900}
+  @media (max-width:560px){ #statStrip .stat{padding:8px 2px} #statStrip .stat b{font-size:18px} #statStrip .stat span{font-size:10px} }
+  .stat span{font-size:11.5px;color:var(--mute);font-weight:700}
+  .spin{width:46px;height:46px;border-radius:50%;border:4px solid rgba(255,255,255,.12);border-top-color:var(--cyan);animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body class="font-game">
+
+<!-- ================= 載入中 ================= -->
+<section id="screen-loading" class="scr on" style="align-items:center;justify-content:center;gap:18px">
+  <div class="spin"></div>
+  <div class="neon" style="font-size:28px">軍旗大戰</div>
+  <div class="lbl" data-i18n="loading">正在偵測登入身份…</div>
+</section>
+
+<!-- ================= 主頁 ================= -->
+<section id="screen-home" class="scr">
+  <div class="w-full max-w-5xl mx-auto px-4 py-4 flex flex-col gap-4" style="width:100%;max-width:1040px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:16px">
+    <header class="flex items-center gap-3" style="display:flex;align-items:center;gap:12px">
+      <div style="width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:24px;background:linear-gradient(135deg,#06b6d4,#7c3aed);box-shadow:0 0 22px rgba(34,211,238,.5)">⚑</div>
+      <div style="min-width:0">
+        <div class="neon" style="font-size:24px;line-height:1.05" data-i18n="title">軍旗大戰</div>
+        <div class="lbl">JUNQI ARENA · <span data-i18n="subtitle">陸戰棋電競版</span></div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <span id="userChip" class="chip" style="max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+        <div id="gsiBtn" style="display:none;align-items:center"></div>
+        <button class="btn ghost sm" id="logoutBtn" style="display:none" onclick="Auth.logout()" data-i18n="logout">登出</button>
+        <button class="btn ghost sm" onclick="Snd.toggle()" id="homeSnd" title="SFX">🔊</button>
+        <button class="btn ghost sm" onclick="Snd.toggleMusic()" id="homeMus" title="Music">🎵</button>
+        <button class="btn ghost sm" onclick="UI.toggleLang()" id="langBtn">繁 / EN</button>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3" id="statStrip" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px"></div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+      <div class="glass p-5" style="padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:34px">🤖</div>
+          <div><div style="font-weight:900;font-size:19px" data-i18n="aiMode">單人模式（人機對戰）</div>
+          <div class="lbl" data-i18n="aiModeDesc">同電腦指揮官鬥智鬥力</div></div>
+        </div>
+        <div>
+          <div class="lbl" style="margin-bottom:6px" data-i18n="difficulty">難度</div>
+          <div class="seg" id="diffSeg">
+            <button data-v="easy" data-i18n="dEasy">新兵</button>
+            <button data-v="normal" data-i18n="dNormal">精英</button>
+            <button data-v="hard" data-i18n="dHard">元帥</button>
+          </div>
+        </div>
+        <div>
+          <div class="lbl" style="margin-bottom:6px" data-i18n="ruleLbl">玩法</div>
+          <div class="seg" id="aiRuleSeg">
+            <button data-v="flip" data-i18n="ruleFlip">翻棋（預設）</button>
+            <button data-v="random" data-i18n="ruleRandom">隨機翻棋</button>
+            <button data-v="classic" data-i18n="ruleClassic">經典暗棋</button>
+          </div>
+        </div>
+        <button class="btn" style="padding:.9em" onclick="App.startAI()" data-i18n="startBattle">⚔ 開始對戰</button>
+      </div>
+
+      <div class="glass" style="padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:34px">👥</div>
+          <div><div style="font-weight:900;font-size:19px" data-i18n="pvpMode">雙人模式（面對面）</div>
+          <div class="lbl" data-i18n="pvpModeDesc">一部 iPad 一開二，同同學面對面決勝負</div></div>
+        </div>
+        <div class="lbl" data-i18n="pvpHint">揀選雙方班別、學號，戰績會自動存入各自帳戶。</div>
+        <button class="btn red" style="padding:.9em" onclick="UI.show('pvp')" data-i18n="setupPvp">🎮 設定雙人對戰</button>
+      </div>
+    </div>
+
+    <div class="glass card-mode" style="padding:18px 20px;display:flex;align-items:center;gap:14px;border-color:rgba(34,211,238,.45)" onclick="Online.openLobby()">
+      <div style="font-size:34px">🌐</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:900;font-size:19px" data-i18n="onlineMode">線上對戰房間</div>
+        <div class="lbl" data-i18n="onlineDesc">唔使登入！開房或者加入房間，用兩部機同任何人對戰</div></div>
+      <button class="btn" data-i18n="enterLobby">進入大堂 →</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+      <div class="glass card-mode" style="padding:16px;display:flex;gap:10px;align-items:center" onclick="App.openRecords()"><span style="font-size:24px">📜</span><b data-i18n="records">我的戰績</b></div>
+      <div class="glass card-mode" style="padding:16px;display:flex;gap:10px;align-items:center" onclick="UI.showRules()"><span style="font-size:24px">📖</span><b data-i18n="rules">遊戲規則</b></div>
+      <div class="glass card-mode" id="resumeCard" style="padding:16px;display:none;gap:10px;align-items:center" onclick="App.resume()"><span style="font-size:24px">⏯</span><b data-i18n="resume">繼續上次對局</b></div>
+    </div>
+    <div class="lbl" style="text-align:center;opacity:.7" id="footNote"></div>
+  </div>
+</section>
+
+<!-- ================= 雙人設定 ================= -->
+<section id="screen-pvp" class="scr">
+  <div style="width:100%;max-width:880px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px">
+    <header style="display:flex;align-items:center;gap:10px">
+      <button class="btn ghost sm" onclick="UI.show('home')">←</button>
+      <div class="neon" style="font-size:22px" data-i18n="setupPvp">🎮 設定雙人對戰</div>
+      <button class="btn ghost sm" style="margin-left:auto" onclick="UI.toggleLang()">繁 / EN</button>
+    </header>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+      <div class="glass A" style="padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px"><div class="p-dot">藍</div><b data-i18n="blueSide">藍方（下方玩家）</b></div>
+        <div class="lbl" data-i18n="cls">班別</div><select class="inp" id="pA-cls"></select>
+        <div class="lbl" data-i18n="no">學號</div><select class="inp" id="pA-no"></select>
+        <input class="inp" id="pA-name" maxlength="16" style="display:none">
+      </div>
+      <div class="glass B" style="padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px"><div class="p-dot">紅</div><b data-i18n="redSide">紅方（上方玩家）</b></div>
+        <div class="lbl" data-i18n="cls">班別</div><select class="inp" id="pB-cls"></select>
+        <div class="lbl" data-i18n="no">學號</div><select class="inp" id="pB-no"></select>
+        <input class="inp" id="pB-name" maxlength="16" style="display:none">
+      </div>
+    </div>
+    <div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:10px">
+      <div class="lbl" data-i18n="visibility">棋局模式</div>
+      <div class="seg" id="visSeg" style="flex-wrap:wrap">
+        <button data-v="flip" data-i18n="ruleFlip">翻棋（預設）</button>
+        <button data-v="random" data-i18n="ruleRandom">隨機翻棋</button>
+        <button data-v="hidden" data-i18n="hiddenMode">暗棋（需按住偷睇）</button>
+        <button data-v="open" data-i18n="openMode">明棋（全部公開）</button>
+      </div>
+      <div class="lbl" style="opacity:.8" data-i18n="pvpTip">提示：iPad 平放枱面，雙方坐兩邊；上方玩家的介面會自動倒轉。</div>
+      <button class="btn red" style="padding:.9em" onclick="App.startPvp()" data-i18n="startBattle">⚔ 開始對戰</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 線上大堂 ================= -->
+<section id="screen-lobby" class="scr">
+  <div style="width:100%;max-width:880px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px">
+    <header style="display:flex;align-items:center;gap:10px">
+      <button class="btn ghost sm" onclick="Online.closeLobby();UI.show('home')">←</button>
+      <div class="neon" style="font-size:22px" data-i18n="lobby">🌐 線上對戰大堂</div>
+      <span class="chip" id="fbStatus" style="margin-left:auto">…</span>
+      <button class="btn ghost sm" onclick="UI.toggleLang()">繁 / EN</button>
+    </header>
+    <div id="lobbyMsg" class="glass" style="padding:16px;display:none"></div>
+    <div id="waitCard" class="glass" style="padding:22px;display:none;text-align:center;flex-direction:column;gap:10px;align-items:center;border-color:rgba(34,211,238,.5)"></div>
+    <div id="lobbyMain" style="display:flex;flex-direction:column;gap:14px">
+      <div class="glass" style="padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end">
+        <div><div class="lbl" data-i18n="yourName">你的名稱</div><input class="inp" id="olName" maxlength="16"></div>
+        <div><div class="lbl" data-i18n="roomName">房間名稱</div><input class="inp" id="olRoom" maxlength="20"></div>
+        <div><div class="lbl" data-i18n="ruleLbl">玩法</div>
+          <div class="seg" id="olRuleSeg"><button data-v="flip" class="on" data-i18n="ruleFlipS">翻棋</button><button data-v="random" data-i18n="ruleRandomS">隨機翻棋</button></div></div>
+        <button class="btn" style="padding:.85em" onclick="Online.create()" data-i18n="createRoom">➕ 建立房間</button>
+      </div>
+      <div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b style="flex:1" data-i18n="roomList">等待中的房間</b>
+          <input class="inp" id="olCode" maxlength="4" inputmode="numeric" style="width:130px">
+          <button class="btn ghost sm" onclick="Online.joinByCode()" data-i18n="joinByCode">用房號加入</button>
+        </div>
+        <div id="roomList" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 遊戲 ================= -->
+<section id="screen-game" class="scr">
+  <div class="gwrap">
+    <div class="panel glass B" id="panel-B"></div>
+    <div id="boardBox">
+      <canvas id="board"></canvas>
+
+      <div class="toast-wrap rot180" id="toastTopWrap" style="top:22%"><div class="toast" id="toastTop"></div></div>
+      <div class="toast-wrap" id="toastWrap" style="bottom:22%"><div class="toast" id="toast"></div></div>
+    </div>
+    <div class="panel glass A" id="panel-A"></div>
+  </div>
+</section>
+
+<!-- ================= 戰績 ================= -->
+<section id="screen-records" class="scr">
+  <div style="width:100%;max-width:880px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px">
+    <header style="display:flex;align-items:center;gap:10px">
+      <button class="btn ghost sm" onclick="UI.show('home')">←</button>
+      <div class="neon" style="font-size:22px" id="recTitle">我的戰績</div>
+      <button class="btn ghost sm" style="margin-left:auto" onclick="UI.toggleLang()">繁 / EN</button>
+    </header>
+    <div id="recBody" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+</section>
+
+
+<script>
+'use strict';
+/* =========================== 語言 =========================== */
+const I18N = {
+  zh: {
+    loading:'正在偵測登入身份…', title:'軍旗大戰', subtitle:'陸戰棋電競版',
+    aiMode:'單人模式（人機對戰）', aiModeDesc:'同電腦指揮官鬥智鬥力', difficulty:'難度',
+    dEasy:'新兵', dNormal:'精英', dHard:'元帥', startBattle:'⚔ 開始對戰',
+    pvpMode:'雙人模式（面對面）', pvpModeDesc:'一部 iPad 一開二，同同學面對面決勝負',
+    pvpHint:'揀選雙方班別、學號，戰績會自動存入各自帳戶。', setupPvp:'🎮 設定雙人對戰',
+    records:'我的戰績', rules:'遊戲規則', resume:'繼續上次對局',
+    blueSide:'藍方（下方玩家）', redSide:'紅方（上方玩家）', cls:'班別', no:'學號',
+    visibility:'玩法', hiddenMode:'經典暗棋（按住偷睇）', openMode:'經典明棋（全部公開）',
+    ruleLbl:'玩法', ruleFlip:'翻棋（預設）', ruleClassic:'經典暗棋', ruleFlipS:'翻棋', ruleClassicS:'經典', ruleRandom:'隨機翻棋', ruleRandomS:'隨機翻棋',
+    flippedR:'{who}翻開：{owner}的{p}', randomStart:'隨機翻棋：紅藍棋子亂晒位！每回合可翻開任何一隻棋，或者移動自己已翻開的棋。', unflippedAll:'全場未翻',
+    tapAgainFlip:'再點一次翻開呢隻棋', flipped:'{who}翻開：{p}', unflipped:'未翻', flipStart:'翻棋模式：每回合可以翻開一隻自己的棋，或者移動已翻開的棋。',
+    flipChip:'已揀：未翻開（再點一次翻開）',
+    pvpTip:'提示：iPad 平放枱面，雙方坐兩邊；上方玩家的介面會自動倒轉。',
+    games:'總場數', wins:'勝', losses:'負', draws:'和', winRate:'勝率', streak:'連勝', best:'最高連勝',
+    guest:'訪客', guestNote:'訪客模式：戰績只會暫存喺呢部裝置',
+    onlineMode:'線上對戰房間', onlineDesc:'唔使登入！開房或者加入房間，用兩部機同任何人對戰', enterLobby:'進入大堂 →', lobby:'🌐 線上對戰大堂',
+    yourName:'你的名稱', roomName:'房間名稱', createRoom:'➕ 建立房間', roomList:'等待中的房間', joinByCode:'用房號加入', join:'加入',
+    codePh:'4 位房號', namePh2:'例如：小明', roomPh:'例如：午飯大戰', noRooms:'暫時冇房間，快啲開一間！',
+    waitingOpp:'等待對手加入…', roomCode:'房號', shareCode:'將房號話俾對手知，或者叫佢喺大堂撳「加入」', cancelRoom:'取消房間', joining:'加入中，等待房主開局…',
+    roomFull:'房間已滿或者已經開始', roomGone:'房間已關閉', needName:'請先輸入你的名稱', needRoomName:'請輸入房間名稱', codeNotFound:'搵唔到呢個房號',
+    fbOff:'未設定 Firebase：請喺 index.html 頂部的 FIREBASE_CONFIG 貼上設定。', fbFail:'Firebase 連線失敗：{e}', fbOk:'🟢 已連線', fbConnecting:'連線中…',
+    oppTurn:'對手回合', online:'🟢 在線', offline:'🔴 離線', claimWin:'對手離線，判我勝', backLobby:'返回大堂', leaveResign:'離開對局會當作認輸，確定？',
+    oppLeft:'對手已離開對局', you2:'（你）', modeOnline:'線上', host:'房主',
+    recordQ:'要記錄今次成績嗎？', recordText:'輸入電郵就可以記錄成績；唔需要可以直接跳過。', recordFor:'{name}：要記錄成績嗎？', skip:'跳過', recordBtn:'記錄成績', badEmail:'電郵格式唔啱', recorded:'成績已記錄 ✅',
+    guestLoginNote:'校內同學請按「使用 Google 帳戶登入」（學校帳戶），戰績會自動儲存；校外人士可直接以訪客身份遊玩，戰績存喺呢部裝置。',
+    logout:'登出', signingIn:'登入中…', loginFail:'登入失敗', sessionExpired:'登入已過期，請重新登入',
+    externalTitle:'校外帳戶', externalText:'{email} 唔係學校帳戶，你可以照樣以訪客身份遊玩，戰績會存喺呢部裝置。',
+    guestSaved:'訪客模式：戰績已儲存喺呢部裝置', namePh:'輸入名稱（可留空）',
+    demoNote:'示範模式（未連接 Google Apps Script）：資料暫存喺瀏覽器',
+    you:'你', ai:'電腦', aiName:'AI 指揮官', blue:'藍方', red:'紅方',
+    yourTurn:'輪到你', waiting:'等待中', thinking:'思考中…', setupPhase:'佈陣中', ready:'已準備',
+    randomSetup:'🎲 隨機佈陣', finishSetup:'✅ 完成佈陣', startNow:'⚔ 開戰', resign:'🏳 認輸', draw:'🤝 求和', peek:'👁 按住偷睇',
+    left:'剩餘', moves:'步數', time:'用時', selected:'已揀', lost:'陣亡',
+    setupTip:'點選兩隻自己的棋可以互換位置', swapBad:'呢個位置唔可以放呢隻棋',
+    hideTurnTitle:'輪到 {who} 佈陣', hideTurnText:'請 {other} 轉身／唔好偷睇！',
+    firstMove:'{who} 先行！', coin:'擲硬幣決定先後…',
+    atkWin:'⚔ 進攻成功！', atkLose:'💥 進攻失敗', atkTie:'☠ 同歸於盡', mineHit:'💣 踩中地雷！', mineClear:'🛠 工兵排雷成功！', bombHit:'💥 炸彈爆炸，同歸於盡',
+    defWin:'🛡 成功擊退敵人', defLose:'⚠ 你的{p}被擊破', defTie:'☠ 你的{p}同敵人同歸於盡',
+    youAtk:'你的{p}', enemy:'敵方',
+    marshalDown:'{side}司令陣亡，軍旗位置曝光！',
+    win:'勝利！', lose:'戰敗', drawRes:'和局',
+    winBy:{flag:'奪得敵方軍旗', nomove:'對手已無棋可動', resign:'對手認輸', draw:'雙方同意和局', limit:'長時間無交戰，判和', left:'對手離線'},
+    youWin:'🎉 恭喜你勝出！', youLose:'再接再厲！', sideWins:'{side} 勝出！',
+    newRecord:'🏆 破紀錄！最高連勝 {n} 場', saved:'戰績已儲存', savedFor:'已儲存至：{list}', notFound:'未找到 {list} 的電郵，未能儲存',
+    again:'再玩一局', home:'返回主頁', confirmResign:'確定認輸？', yes:'確定', cancel:'取消',
+    offerDraw:'{side}提出和局，你同意嗎？', agree:'同意', refuse:'拒絕', drawRefused:'對方拒絕和局',
+    exitConfirm:'離開對局？（進度會自動儲存）', exit:'離開',
+    welcome:'歡迎回來，{name}！', welcomeNew:'歡迎，{name}！', resumeQ:'有一局未完成，要唔要繼續？', continueBtn:'繼續', newBtn:'唔使',
+    noHistory:'仲未有對戰紀錄，快啲開一局啦！', vs:'對', modeAI:'人機', modePvp:'雙人',
+    rank:'排名', player:'玩家', pickStudent:'— 請選擇 —', guestOpt:'訪客（不記錄）', sameStudent:'雙方唔可以係同一位同學',
+    error:'發生錯誤', netErr:'連線失敗，請稍後再試', hiddenSetupDone:'雙方佈陣完成，開戰！',
+    noRoster:'（學生資料未設定）', stalemate:'和局次數太多', aiNoMoves:'',
+    ruleHtml:`<div class="rules">
+<h4>🔄 翻棋玩法（預設）</h4><ul><li>開局所有棋子都蓋住，雙方只見到紅色同藍色，連自己都唔知係咩棋。</li><li>輪流行動，每回合揀一樣：<b>翻開一隻自己的棋</b>，或者<b>移動一隻已翻開的棋</b>（包括進攻）。</li><li>未翻開的棋唔可以移動，但可以被攻擊；交戰後雙方棋子會翻開。</li><li>棋子大小、食棋同走法跟返經典規則（見下面）。</li></ul>
+<h4>🎲 隨機翻棋</h4><ul><li>紅藍兩色共 50 隻棋，蓋住後隨機擺喺全個棋盤（行營除外），自己嘅棋可能喺對方嗰邊出現。</li><li>每回合可以<b>翻開任何一隻蓋住的棋</b>（可能係對方嘅！），或者<b>移動自己已翻開的棋</b>。</li><li>蓋住的棋唔可以攻擊，要先翻開。開局喺大本營的棋可以行出嚟，之後再入大本營就唔可以再動。</li><li>一方所有可移動嘅棋都冇晒即輸；奪旗即勝。</li></ul>
+<h4>🎯 勝利條件</h4><ul><li>吃掉對方的「軍旗」即勝。</li><li>對方所有可移動棋子被消滅（無棋可動）亦勝。</li></ul>
+<h4>🎖 棋子大小（大食細）</h4>
+<div class="rk"><div>司令 ×1</div><div>軍長 ×1</div><div>師長 ×2</div><div>旅長 ×2</div><div>團長 ×2</div><div>營長 ×2</div><div>連長 ×3</div><div>排長 ×3</div><div>工兵 ×3</div><div>地雷 ×3</div><div>炸彈 ×2</div><div>軍旗 ×1</div></div>
+<ul><li>同級相碰：同歸於盡。</li><li><b>炸彈</b>：同任何棋子相碰都同歸於盡。</li><li><b>地雷</b>：不能移動；只有工兵可以排雷，其他棋子踩中會陣亡（炸彈可同歸於盡）。</li><li><b>軍旗</b>：不能移動，必須放在大本營。</li><li>司令陣亡後，己方軍旗位置會公開。</li></ul>
+<h4>🛤 走法</h4><ul><li><b>公路</b>（細線）：每次走一格；行營可斜走。</li><li><b>鐵路</b>（發光粗線）：可直線走任意格數（中間不能有棋）；<b>工兵</b>可以喺鐵路上轉彎。</li><li><b>行營</b>（圓圈）：入面的棋子不能被攻擊。</li><li><b>大本營</b>：棋子進入後不能再移動。</li></ul>
+<h4>🧩 佈陣規則（翻棋模式由系統隨機按此規則擺放）</h4><ul><li>軍旗只可放大本營；地雷只可放最後兩行；炸彈不可放第一行；行營開局必須留空。</li><li>點選兩隻自己的棋即可互換位置。</li></ul>
+<h4>👁 暗棋</h4><ul><li>雙方只知道自己的棋。交戰後只會顯示結果，唔會公開棋子身份。</li><li>雙人暗棋：按住「偷睇」先會顯示自己的棋（請對手唔好望！）。</li></ul></div>`
+  },
+  en: {
+    loading:'Detecting your account…', title:'Junqi Arena', subtitle:'Army Chess · Esports Edition',
+    aiMode:'Single Player (vs AI)', aiModeDesc:'Outsmart the AI commander', difficulty:'Difficulty',
+    dEasy:'Recruit', dNormal:'Elite', dHard:'Marshal', startBattle:'⚔ Start Battle',
+    pvpMode:'Two Players (Face-to-face)', pvpModeDesc:'One iPad, two players sitting opposite',
+    pvpHint:'Pick both players’ class & number. Results are saved to each account.', setupPvp:'🎮 Set Up 2-Player',
+    records:'My Records', rules:'Rules', resume:'Resume Last Game',
+    blueSide:'Blue (bottom player)', redSide:'Red (top player)', cls:'Class', no:'Class No.',
+    visibility:'Rules', hiddenMode:'Classic Hidden (hold to peek)', openMode:'Classic Open',
+    ruleLbl:'Rules', ruleFlip:'Flip (default)', ruleClassic:'Classic Hidden', ruleFlipS:'Flip', ruleClassicS:'Classic', ruleRandom:'Random Flip', ruleRandomS:'Random',
+    flippedR:'{who} flipped {owner}’s {p}', randomStart:'Random Flip: red and blue pieces are shuffled everywhere! Flip any piece, or move one of your flipped pieces.', unflippedAll:'Face-down',
+    tapAgainFlip:'Tap again to flip this piece', flipped:'{who} flipped: {p}', unflipped:'Hidden', flipStart:'Flip mode: each turn, flip one of your pieces or move a flipped one.',
+    flipChip:'Selected: face-down (tap again to flip)',
+    pvpTip:'Tip: lay the iPad flat between you. The top player’s panel is flipped automatically.',
+    games:'Games', wins:'Wins', losses:'Losses', draws:'Draws', winRate:'Win %', streak:'Streak', best:'Best Streak',
+    guest:'Guest', guestNote:'Guest mode: records are kept on this device only',
+    onlineMode:'Online Rooms', onlineDesc:'No sign-in needed! Create or join a room and play anyone on two devices', enterLobby:'Enter lobby →', lobby:'🌐 Online Lobby',
+    yourName:'Your name', roomName:'Room name', createRoom:'➕ Create room', roomList:'Open rooms', joinByCode:'Join by code', join:'Join',
+    codePh:'4-digit code', namePh2:'e.g. Alex', roomPh:'e.g. Lunch battle', noRooms:'No rooms yet — create one!',
+    waitingOpp:'Waiting for an opponent…', roomCode:'Code', shareCode:'Share the code, or ask them to tap “Join” in the lobby', cancelRoom:'Cancel room', joining:'Joined! Waiting for the host to start…',
+    roomFull:'Room is full or already started', roomGone:'Room closed', needName:'Please enter your name', needRoomName:'Please enter a room name', codeNotFound:'Room code not found',
+    fbOff:'Firebase not configured: paste your config into FIREBASE_CONFIG at the top of index.html.', fbFail:'Firebase connection failed: {e}', fbOk:'🟢 Connected', fbConnecting:'Connecting…',
+    oppTurn:'Opponent’s turn', online:'🟢 Online', offline:'🔴 Offline', claimWin:'Opponent offline — claim win', backLobby:'Back to lobby', leaveResign:'Leaving counts as resigning. Leave?',
+    oppLeft:'Your opponent left the game', you2:' (you)', modeOnline:'Online', host:'Host',
+    recordQ:'Save this result?', recordText:'Enter your email to save the result, or skip.', recordFor:'{name}: save this result?', skip:'Skip', recordBtn:'Save', badEmail:'Invalid email', recorded:'Result saved ✅',
+    guestLoginNote:'School students: tap “Sign in with Google” using your school account to save records. Visitors can play as guests (records stay on this device).',
+    logout:'Sign out', signingIn:'Signing in…', loginFail:'Sign-in failed', sessionExpired:'Session expired, please sign in again',
+    externalTitle:'Non-school account', externalText:'{email} is not a school account. You can still play as a guest; records stay on this device.',
+    guestSaved:'Guest mode: result saved on this device', namePh:'Enter a name (optional)',
+    demoNote:'Demo mode (not connected to Apps Script): data kept in this browser',
+    you:'You', ai:'AI', aiName:'AI Commander', blue:'Blue', red:'Red',
+    yourTurn:'Your turn', waiting:'Waiting', thinking:'Thinking…', setupPhase:'Deploying', ready:'Ready',
+    randomSetup:'🎲 Shuffle', finishSetup:'✅ Ready', startNow:'⚔ Battle!', resign:'🏳 Resign', draw:'🤝 Draw', peek:'👁 Hold to peek',
+    left:'Left', moves:'Moves', time:'Time', selected:'Selected', lost:'Lost',
+    setupTip:'Tap two of your pieces to swap them', swapBad:'That piece can’t go there',
+    hideTurnTitle:'{who}: deploy now', hideTurnText:'{other}, please look away!',
+    firstMove:'{who} moves first!', coin:'Tossing a coin…',
+    atkWin:'⚔ Attack succeeded!', atkLose:'💥 Attack failed', atkTie:'☠ Both destroyed', mineHit:'💣 Hit a landmine!', mineClear:'🛠 Mine cleared!', bombHit:'💥 Bomb! Both destroyed',
+    defWin:'🛡 Attack repelled', defLose:'⚠ Your {p} was destroyed', defTie:'☠ Your {p} traded with the enemy',
+    youAtk:'Your {p}', enemy:'Enemy',
+    marshalDown:'{side} Marshal fell — flag revealed!',
+    win:'Victory!', lose:'Defeat', drawRes:'Draw',
+    winBy:{flag:'Captured the enemy flag', nomove:'Opponent has no moves', resign:'Opponent resigned', draw:'Draw agreed', limit:'No battles for too long — draw', left:'Opponent disconnected'},
+    youWin:'🎉 You win!', youLose:'Better luck next time!', sideWins:'{side} wins!',
+    newRecord:'🏆 New record! Best streak {n}', saved:'Result saved', savedFor:'Saved to: {list}', notFound:'No email found for {list}; not saved',
+    again:'Play again', home:'Home', confirmResign:'Resign this game?', yes:'Yes', cancel:'Cancel',
+    offerDraw:'{side} offers a draw. Accept?', agree:'Accept', refuse:'Decline', drawRefused:'Draw declined',
+    exitConfirm:'Leave the game? (Progress is saved)', exit:'Leave',
+    welcome:'Welcome back, {name}!', welcomeNew:'Welcome, {name}!', resumeQ:'You have an unfinished game. Continue?', continueBtn:'Continue', newBtn:'No thanks',
+    noHistory:'No games yet — start one!', vs:'vs', modeAI:'vs AI', modePvp:'2P',
+    rank:'Rank', player:'Player', pickStudent:'— Select —', guestOpt:'Guest (not saved)', sameStudent:'Both players can’t be the same student',
+    error:'Error', netErr:'Network error, please retry', hiddenSetupDone:'Both sides deployed. Fight!',
+    noRoster:'(roster not set)', stalemate:'', aiNoMoves:'',
+    ruleHtml:`<div class="rules">
+<h4>🔄 Flip mode (default)</h4><ul><li>All pieces start face-down — everyone only sees red and blue, even your own ranks are unknown.</li><li>Take turns. Each turn either <b>flip one of your pieces</b> or <b>move a flipped piece</b> (including attacks).</li><li>Face-down pieces can’t move but can be attacked; pieces in a battle are turned face-up.</li><li>Ranks, captures and movement follow the classic rules below.</li></ul>
+<h4>🎲 Random Flip</h4><ul><li>All 50 red and blue pieces are shuffled face-down across the whole board (except camps) — your pieces may appear on the enemy side.</li><li>Each turn: <b>flip any face-down piece</b> (it might be the enemy’s!) or <b>move one of your flipped pieces</b>.</li><li>Face-down pieces can’t be attacked; flip them first. Pieces that start in a HQ may leave it; entering a HQ later still locks them.</li><li>A side with no movable pieces left loses; capturing the flag wins.</li></ul>
+<h4>🎯 How to win</h4><ul><li>Capture the opponent’s Flag.</li><li>Or destroy all their movable pieces.</li></ul>
+<h4>🎖 Ranks (higher beats lower)</h4>
+<div class="rk"><div>Marshal ×1</div><div>General ×1</div><div>Maj-Gen ×2</div><div>Brigadier ×2</div><div>Colonel ×2</div><div>Major ×2</div><div>Captain ×3</div><div>Lieutenant ×3</div><div>Engineer ×3</div><div>Mine ×3</div><div>Bomb ×2</div><div>Flag ×1</div></div>
+<ul><li>Equal ranks: both removed.</li><li><b>Bomb</b>: destroys itself and whatever it meets.</li><li><b>Mine</b>: immobile; only Engineers can clear it, others die (a Bomb trades with it).</li><li><b>Flag</b>: immobile, must be in a Headquarters.</li><li>When the Marshal dies, that side’s Flag is revealed.</li></ul>
+<h4>🛤 Movement</h4><ul><li><b>Roads</b> (thin): one step; diagonal moves through camps.</li><li><b>Railways</b> (glowing): any distance in a straight line; <b>Engineers</b> can turn corners.</li><li><b>Camps</b> (circles): pieces inside can’t be attacked.</li><li><b>Headquarters</b>: pieces entering can never move again.</li></ul>
+<h4>🧩 Deployment (random in Flip mode, following these rules)</h4><ul><li>Flag in a HQ; mines in the last two rows; bombs not in the front row; camps start empty.</li><li>Tap two of your pieces to swap.</li></ul>
+<h4>👁 Hidden mode</h4><ul><li>You only see your own pieces; battles show results only.</li><li>2-player hidden: hold “Peek” to see your own pieces.</li></ul></div>`
+  }
+};
+let LANG = 'zh';
+function t(k, vars){ let s = (I18N[LANG][k] ?? I18N.zh[k] ?? k); if (typeof s==='string' && vars) s = s.replace(/\{(\w+)\}/g,(m,x)=> vars[x]??''); return s; }
+
+/* =========================== 小工具 =========================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const LS = { get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return LS._m[k]??d; } },
+             set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ LS._m[k]=v; } }, _m:{} };
+function fmtTime(sec){ sec=Math.max(0,Math.round(sec)); const m=Math.floor(sec/60), s=sec%60; return m+':'+String(s).padStart(2,'0'); }
+
+/* ====== SweetAlert2 包裝（如 CDN 載入失敗，用後備彈窗，永不使用 alert/confirm） ====== */
+const Pop = {
+  base(){ return { background:'rgba(12,16,38,.85)', color:'#e6edf7', confirmButtonColor:'#0891b2', cancelButtonColor:'#475569',
+    customClass:{ popup:'swal-glass' }, heightAuto:false }; },
+  fire(opts, forSide){
+    const o = Object.assign(this.base(), opts);
+    if (forSide==='B' && G && G.mode==='pvp') o.customClass = Object.assign({}, o.customClass, { container:'rot180' });
+    if (!o.toast) Snd.pop();
+    if (window.Swal) return Swal.fire(o);
+    return this.fallback(o);
+  },
+  toast(text, icon='success'){
+    if (window.Swal) return Swal.fire(Object.assign(this.base(), { toast:true, position:'top', timer:2200, showConfirmButton:false, icon, title:text }));
+    return this.fallback({ title:text, timer:1800, showConfirmButton:false });
+  },
+  fallback(o){
+    return new Promise(res => {
+      const m = document.createElement('div'); m.className='fb-mask' + (o.customClass && o.customClass.container ? ' '+o.customClass.container : '');
+      const icon = {success:'✅',error:'❌',warning:'⚠️',info:'ℹ️',question:'❓'}[o.icon] || '';
+      m.innerHTML = `<div class="fb-box glass"><div style="font-size:34px">${icon}</div><h2 style="font-size:20px;font-weight:900;margin:.3em 0">${o.title||''}</h2>
+        <div style="color:#cbd5e1;margin-bottom:14px">${o.html || esc(o.text||'')}</div>
+        ${o.input?`<input class="inp fb-in" type="${o.input}" placeholder="${esc(o.inputPlaceholder||'')}" value="${esc(o.inputValue||'')}" style="margin-bottom:12px">`:''}
+        <div style="display:flex;gap:8px;justify-content:center">
+        ${o.showCancelButton?`<button class="btn ghost" data-r="c">${o.cancelButtonText||t('cancel')}</button>`:''}
+        ${o.showDenyButton?`<button class="btn red" data-r="d">${o.denyButtonText||'No'}</button>`:''}
+        ${o.showConfirmButton===false?'':`<button class="btn" data-r="ok">${o.confirmButtonText||'OK'}</button>`}</div></div>`;
+      const done = async r => { const inp=m.querySelector('.fb-in'); const value = inp ? inp.value : undefined;
+        if (r==='ok' && o.inputValidator){ const msg = await o.inputValidator(value); if (msg){ inp.style.borderColor='#f43f5e'; inp.placeholder=msg; inp.value=''; return; } }
+        m.remove(); res({ isConfirmed:r==='ok', isDenied:r==='d', isDismissed:r!=='ok'&&r!=='d', value }); };
+      m.addEventListener('click', e => { const b=e.target.closest('[data-r]'); if (b) done(b.dataset.r); });
+      document.body.appendChild(m);
+      if (o.didOpen) try { o.didOpen(m); } catch(e){}
+      if (o.timer) setTimeout(()=>done('t'), o.timer);
+    });
+  }
+};
+const Fx = {
+  confetti(opts){ try { if (window.confetti) window.confetti(Object.assign({ particleCount:120, spread:75, origin:{y:.6} }, opts||{})); } catch(e){} },
+  big(){ const end=Date.now()+1500; const f=()=>{ this.confetti({particleCount:40,angle:60,spread:60,origin:{x:0,y:.7}}); this.confetti({particleCount:40,angle:120,spread:60,origin:{x:1,y:.7}}); if(Date.now()<end) setTimeout(f,220); }; f(); }
+};
+
+/* =========================== 音效 =========================== */
+const Snd = {
+  on:true, musicOn:true, ctx:null, master:null, sfxBus:null, musicBus:null, noiseBuf:null,
+  // ---------- 引擎 ----------
+  init(){
+    if (this.ctx) return true;
+    try {
+      const AC = window.AudioContext||window.webkitAudioContext; if (!AC) return false;
+      const c = this.ctx = new AC();
+      this.master=c.createGain(); this.master.gain.value=0.9;
+      const comp=c.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=4;
+      this.master.connect(comp); comp.connect(c.destination);
+      this.sfxBus=c.createGain(); this.sfxBus.gain.value=0.8; this.sfxBus.connect(this.master);
+      this.musicBus=c.createGain(); this.musicBus.gain.value=0; this.musicBus.connect(this.master);
+      const len=c.sampleRate*1, buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+      for (let i=0;i<len;i++) d[i]=Math.random()*2-1; this.noiseBuf=buf;
+      return true;
+    } catch(e){ return false; }
+  },
+  unlock(){ if (!this.init()) return; if (this.ctx.state==='suspended') this.ctx.resume(); if (this.musicOn && !this.timer) this.startMusic(); },
+  tone(f, d=.1, type='sine', v=.08, opt={}){
+    if (!this.on || !this.init()) return; const c=this.ctx, t0=c.currentTime+(opt.delay||0);
+    const o=c.createOscillator(), g=c.createGain(); o.type=type; o.frequency.setValueAtTime(f,t0);
+    if (opt.to) o.frequency.exponentialRampToValueAtTime(opt.to, t0+d);
+    g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(v, t0+(opt.a||.005)); g.gain.exponentialRampToValueAtTime(0.0001, t0+d);
+    let out=g; if (opt.lp){ const f2=c.createBiquadFilter(); f2.type='lowpass'; f2.frequency.value=opt.lp; g.connect(f2); out=f2; }
+    o.connect(g); out.connect(opt.bus||this.sfxBus); o.start(t0); o.stop(t0+d+.05);
+  },
+  noise(d=.2, v=.1, opt={}){
+    if (!this.on || !this.init()) return; const c=this.ctx, t0=c.currentTime+(opt.delay||0);
+    const s=c.createBufferSource(); s.buffer=this.noiseBuf; const f=c.createBiquadFilter(); f.type=opt.type||'bandpass';
+    f.frequency.setValueAtTime(opt.f||1200,t0); if (opt.to) f.frequency.exponentialRampToValueAtTime(opt.to,t0+d); f.Q.value=opt.q||1;
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(v,t0+(opt.a||.005)); g.gain.exponentialRampToValueAtTime(0.0001,t0+d);
+    s.connect(f); f.connect(g); g.connect(opt.bus||this.sfxBus); s.start(t0, Math.random()*.5); s.stop(t0+d+.05);
+  },
+  beep(f=440,d=.08,type='sine',v=.06){ this.tone(f,d,type,v); },
+  // ---------- 介面音效 ----------
+  click(){ this.tone(1400,.035,'square',.035,{lp:3000}); this.tone(700,.05,'triangle',.05); },
+  tab(){ this.tone(900,.05,'triangle',.06); this.tone(1350,.06,'triangle',.04,{delay:.04}); },
+  pop(){ this.tone(520,.12,'sine',.07,{to:880}); this.noise(.08,.03,{f:3000}); },
+  toastTick(){ this.tone(1800,.03,'sine',.03); },
+  error(){ this.tone(220,.12,'square',.05,{lp:1200}); this.tone(180,.16,'square',.05,{delay:.09,lp:1200}); },
+  // ---------- 棋局音效 ----------
+  select(){ this.tone(660,.06,'triangle',.07); this.tone(990,.05,'sine',.04,{delay:.03}); },
+  hint(){ this.tone(520,.05,'triangle',.05); },
+  move(){ this.noise(.09,.06,{f:900,q:2}); this.tone(260,.08,'triangle',.08,{to:180}); },
+  swap(){ this.noise(.08,.05,{f:1500,q:2}); this.tone(500,.06,'triangle',.06,{to:700}); },
+  flip(){ this.noise(.16,.08,{f:600,to:5000,q:1.5}); this.tone(700,.09,'triangle',.07,{to:1400,delay:.08}); this.tone(1760,.12,'sine',.04,{delay:.15}); },
+  hit(){ this.noise(.18,.14,{f:2500,to:600,q:.8}); this.tone(160,.18,'sawtooth',.08,{to:60,lp:900}); this.tone(880,.1,'triangle',.05,{delay:.12}); this.tone(1320,.14,'triangle',.05,{delay:.2}); },
+  fail(){ this.noise(.15,.1,{f:1800,to:500}); this.tone(330,.2,'sawtooth',.06,{to:150,lp:1000,delay:.05}); },
+  tie(){ this.noise(.3,.16,{f:1500,to:200,q:.7}); this.tone(120,.3,'sawtooth',.09,{to:50,lp:700}); },
+  explode(){ this.noise(.7,.3,{type:'lowpass',f:2500,to:80,q:.5}); this.tone(90,.6,'sine',.18,{to:30}); this.noise(.25,.12,{f:4000,to:800,delay:.02}); },
+  mine(){ this.tone(1200,.05,'square',.05); this.explode(); },
+  defuse(){ [1046,1318,1568].forEach((f,i)=>this.tone(f,.08,'triangle',.06,{delay:i*.06})); this.noise(.06,.04,{f:5000,delay:.2}); },
+  alarm(){ for (let i=0;i<3;i++){ this.tone(880,.12,'square',.04,{delay:i*.22,lp:2000}); this.tone(660,.12,'square',.04,{delay:i*.22+.11,lp:2000}); } },
+  start(){ [392,523,659,784].forEach((f,i)=>this.tone(f,.22,'sawtooth',.05,{delay:i*.11,lp:2400})); this.noise(.4,.06,{f:6000,delay:.4,type:'highpass'}); },
+  win(){ this.victory(); },
+  victory(){ const n=[523,659,784,1046,784,1046,1318]; n.forEach((f,i)=>{ this.tone(f,.24,'sawtooth',.05,{delay:i*.12,lp:3000}); this.tone(f/2,.24,'triangle',.05,{delay:i*.12}); });
+    this.noise(.8,.05,{f:7000,type:'highpass',delay:.7}); },
+  defeat(){ [440,415,392,330].forEach((f,i)=>this.tone(f,.38,'triangle',.07,{delay:i*.3,lp:1500})); this.tone(110,1.2,'sine',.08,{delay:.9}); },
+  drawSnd(){ [523,523,659].forEach((f,i)=>this.tone(f,.2,'triangle',.06,{delay:i*.18})); },
+  boom(){ this.tie(); },
+  battle(a,d,res){
+    if (a.t===2 || d.t===2) return this.explode();
+    if (d.t===1) return res==='win' ? this.defuse() : this.mine();
+    if (res==='flag') return this.hit();
+    if (res==='win') return this.hit(); if (res==='lose') return this.fail(); return this.tie();
+  },
+  // ---------- 背景音樂（WebAudio 合成，D 小調軍樂電子節奏） ----------
+  bpm:96, step:0, nextT:0, timer:null, intensity:0,
+  startMusic(){
+    if (!this.musicOn || !this.init() || this.timer) return;
+    const c=this.ctx; this.musicBus.gain.cancelScheduledValues(c.currentTime); this.musicBus.gain.setValueAtTime(this.musicBus.gain.value,c.currentTime);
+    this.musicBus.gain.linearRampToValueAtTime(0.32, c.currentTime+1.5);
+    this.nextT=c.currentTime+.1; this.step=0;
+    this.timer=setInterval(()=>this.schedule(), 40);
+  },
+  stopMusic(){ if (!this.ctx) return; clearInterval(this.timer); this.timer=null; const c=this.ctx;
+    this.musicBus.gain.cancelScheduledValues(c.currentTime); this.musicBus.gain.setValueAtTime(this.musicBus.gain.value,c.currentTime); this.musicBus.gain.linearRampToValueAtTime(0,c.currentTime+.4); },
+  setIntensity(v){ this.intensity=v; },
+  mtone(f,t,d,type,v,lp){ const c=this.ctx, o=c.createOscillator(), g=c.createGain(); o.type=type; o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v,t+.01); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    let out=g; if (lp){ const fl=c.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=lp; g.connect(fl); out=fl; }
+    o.connect(g); out.connect(this.musicBus); o.start(t); o.stop(t+d+.05); },
+  mnoise(t,d,v,f,type){ const c=this.ctx, s=c.createBufferSource(); s.buffer=this.noiseBuf; const fl=c.createBiquadFilter(); fl.type=type||'highpass'; fl.frequency.value=f;
+    const g=c.createGain(); g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.0001,t+d); s.connect(fl); fl.connect(g); g.connect(this.musicBus); s.start(t,Math.random()*.5); s.stop(t+d+.02); },
+  kick(t){ const c=this.ctx, o=c.createOscillator(), g=c.createGain(); o.frequency.setValueAtTime(130,t); o.frequency.exponentialRampToValueAtTime(40,t+.18);
+    g.gain.setValueAtTime(.55,t); g.gain.exponentialRampToValueAtTime(0.0001,t+.25); o.connect(g); g.connect(this.musicBus); o.start(t); o.stop(t+.3); },
+  schedule(){
+    const c=this.ctx; if (!c) return; const s16=60/this.bpm/4;
+    // 和弦進行：Dm - Bb - F - C（每小節一個）
+    const prog=[[146.83,174.61,220.00],[116.54,146.83,174.61],[174.61,220.00,261.63],[130.81,164.81,196.00]];
+    const bass=[73.42,58.27,87.31,65.41];
+    while (this.nextT < c.currentTime+0.15){
+      const t=this.nextT, st=this.step%16, bar=Math.floor(this.step/16)%4, big=Math.floor(this.step/64)%2, inten=this.intensity;
+      const ch=prog[bar];
+      if (st===0){ ch.forEach(f=>{ this.mtone(f,t,s16*15,'sawtooth',.018,900); this.mtone(f*1.003,t,s16*15,'sawtooth',.014,700); }); }
+      if (st%4===0) this.kick(t);
+      if (st===4 || st===12) this.mnoise(t,.14,.12+inten*.05,1800,'bandpass');            // 軍鼓
+      if (inten>0 && (st===14 || st===15)) this.mnoise(t,.06,.06,2200,'bandpass');          // 鼓花
+      if (st%2===0) this.mnoise(t,.03,.05,7000);                                             // 閉鑔
+      if ([0,3,6,8,11,14].includes(st)) this.mtone(bass[bar]*(st===8?2:1),t,s16*1.8,'square',.07,500); // 低音
+      if (inten>0 || big){ const arp=[ch[0]*2,ch[1]*2,ch[2]*2,ch[1]*2]; if (st%2===1) this.mtone(arp[(st>>1)%4],t,s16*1.2,'triangle',.035,3000); }
+      if (st===0 && bar===3) this.mtone(ch[2]*4,t+s16*12,s16*4,'sine',.03);                   // 號角尾音
+      this.nextT+=s16; this.step++;
+    }
+  },
+  toggle(){ this.on=!this.on; if (this.on){ this.unlock(); this.select(); } if (G) UI.panels(); App.renderHome && App.renderHome(); App.saveSettings(); },
+  toggleMusic(){ this.musicOn=!this.musicOn; if (this.musicOn){ this.unlock(); this.startMusic(); } else this.stopMusic(); if (G) UI.panels(); App.renderHome && App.renderHome(); App.saveSettings(); }
+};
+
+/* =========================== 伺服器（GAS / 示範模式） =========================== */
+const HAS_GAS = !!(window.google && google.script && google.script.run);
+const Local = { // 示範 / 訪客：用瀏覽器儲存
+  key:'junqi_local_saves',
+  all(){ return LS.get(this.key, {}); },
+  get(email){ return this.all()[email] || Local.defaultSave(); },
+  put(email, save){ const a=this.all(); a[email]=save; LS.set(this.key, a); },
+  defaultSave(){ return { v:1, settings:{lang:'zh',difficulty:'normal',sound:true}, stats:{games:0,wins:0,losses:0,draws:0,streak:0,bestStreak:0,aiWins:0,pvpWins:0}, history:[], current:null }; },
+  apply(save, e){ const st=save.stats; if (save.history.some(h=>h.id===e.id && h.side===e.side)) return; st.games++;
+    if (e.result==='win'){ st.wins++; st.streak++; if(e.mode==='ai') st.aiWins++; else st.pvpWins++; e.newRecord = st.streak>st.bestStreak; if (st.streak>st.bestStreak) st.bestStreak=st.streak; }
+    else if (e.result==='lose'){ st.losses++; st.streak=0; } else st.draws++;
+    save.history=[e].concat(save.history).slice(0,300); }
+};
+const DEMO_ROSTER = [
+  {cls:'1A',no:'1',name:'陳大文',email:'demo@school.edu.hk'},{cls:'1A',no:'2',name:'李小明',email:'s1a02@school.edu.hk'},{cls:'1A',no:'3',name:'黃美玲',email:'s1a03@school.edu.hk'},
+  {cls:'1B',no:'1',name:'張志強',email:'s1b01@school.edu.hk'},{cls:'1B',no:'2',name:'何嘉欣',email:'s1b02@school.edu.hk'},{cls:'2A',no:'5',name:'周子軒',email:'s2a05@school.edu.hk'}
+];
+const Mock = {
+  async apiBootstrap(){ await sleep(300); const me=DEMO_ROSTER[0];
+    if (GAS_URL) return { ok:true, user:{email:'',name:'',isGuest:true}, save:null, roster:[] };
+    return { ok:true, demo:true, user:{email:me.email,name:me.name,cls:me.cls,no:me.no,isAdmin:false,isGuest:false,inRoster:true},
+      save: Local.get(me.email), roster: DEMO_ROSTER.map(s=>({cls:s.cls,no:s.no,name:s.name})) }; },
+  async apiSaveState(p){ const u=App.user; const s=Local.get(u.email||'guest'); if(p.settings) s.settings=p.settings; if('current' in p) s.current=p.current; Local.put(u.email||'guest', s); return {ok:true}; },
+  async apiRecordMatch(m){ const res={ok:true,saved:[],missing:[],save:null}; const me=App.user.email||'guest';
+    for (const side of ['A','B']){ const p=m.players[side]; if(!p||p.ai||(p.remote&&!p.self)) continue;
+      let target = p.self ? me : ((App.demo ? DEMO_ROSTER : []).find(s=>s.cls===p.cls && s.no===p.no)||{}).email;
+      if (!target){ res.missing.push(side); continue; }
+      const other = side==='A'?m.players.B:m.players.A;
+      const e={ id:m.id, at:Date.now(), mode:m.mode, rule:m.rule, difficulty:m.difficulty, hidden:m.hidden, side, result: m.winner==='draw'?'draw':(m.winner===side?'win':'lose'),
+        reason:m.reason, moves:m.moves, durationSec:m.durationSec, opponent: other?{cls:other.cls||'',no:other.no||'',name:other.name||'',ai:!!other.ai}:null };
+      const s=Local.get(target); Local.apply(s,e); if (target===me) { s.current=null; res.save=s; } Local.put(target,s); res.saved.push(side); }
+    if(!res.save) res.save=Local.get(me); return res; },
+  async apiGetSave(){ return {ok:true, save:Local.get(App.user.email||'guest')}; },
+  async apiLog(){ return {ok:true}; }
+};
+const API_MAP = { apiBootstrap:'bootstrap', apiSaveState:'saveState', apiRecordMatch:'recordMatch', apiGetSave:'getSave', apiLog:'log' };
+const Remote = {
+  async post(fn, args){
+    const r = await fetch(GAS_URL, { method:'POST', redirect:'follow', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn, args: args||[], session: Auth.session||'' }) });
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  }
+};
+const Server = {
+  async call(fn, ...args){
+    if (HAS_GAS && !(App.user && App.user.isGuest && fn!=='apiBootstrap' && fn!=='apiLog')) {
+      return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args));
+    }
+    if (!GAS_URL) return Mock[fn](...args);                                    // 示範模式（未設定後端）
+    if (!Auth.session && fn!=='apiBootstrap' && fn!=='apiLog') return Mock[fn](...args); // 訪客：戰績存喺本機
+    const res = await Remote.post(API_MAP[fn], args);
+    if (res && res.error==='AUTH_EXPIRED'){ Auth.expire(); return Mock[fn](...args); }
+    return res;
+  }
+};
+
+/* =========================== Google 登入（GitHub 版） =========================== */
+const Auth = {
+  session: LS.get('junqi_session',''), ready:false, tries:0,
+  enabled(){ return !!(GAS_URL && GOOGLE_CLIENT_ID); },
+  init(){
+    if (!this.enabled()) return;
+    const g = window.google && google.accounts && google.accounts.id;
+    if (!g){ if (++this.tries<40) setTimeout(()=>this.init(), 300); return; }
+    google.accounts.id.initialize({ client_id:GOOGLE_CLIENT_ID, callback:r=>this.onCredential(r), auto_select:true,
+      cancel_on_tap_outside:false, itp_support:true, use_fedcm_for_prompt:true, context:'signin' });
+    this.ready=true; this.renderBtn();
+    if (!this.session) google.accounts.id.prompt();     // 曾經登入過嘅校內用戶會自動登入
+  },
+  renderBtn(){
+    const el=$('#gsiBtn'), lo=$('#logoutBtn');
+    if (lo) lo.style.display = this.session ? '' : 'none';
+    if (!el) return; el.innerHTML='';
+    if (this.session || !this.ready){ el.style.display='none'; return; }
+    el.style.display='flex';
+    try { google.accounts.id.renderButton(el, { theme:'filled_black', size:'medium', shape:'pill', text:'signin_with', locale: LANG==='en'?'en':'zh-TW' }); } catch(e){}
+  },
+  async onCredential(resp){
+    try {
+      Pop.toast(t('signingIn'),'info');
+      const res = await Remote.post('login', [resp.credential]);
+      if (res.session){ this.session=res.session; LS.set('junqi_session', res.session); await App.applyBoot(res); this.renderBtn(); return; }
+      if (res.external){ Pop.fire({ icon:'info', title:t('externalTitle'), text:t('externalText',{email:res.externalEmail||''}) }); return; }
+      throw new Error(res.error||'LOGIN');
+    } catch(e){ Pop.fire({ icon:'error', title:t('loginFail'), text:String(e.message||e) }); }
+  },
+  expire(){
+    this.session=''; LS.set('junqi_session','');
+    App.user={ email:'', name:'', isGuest:true }; App.roster=[]; App.save=Local.get('guest'); App.renderHome();
+    Pop.toast(t('sessionExpired'),'warning'); this.renderBtn(); if (this.ready) google.accounts.id.prompt();
+  },
+  logout(){
+    Remote.post('logout',[]).catch(()=>{});
+    this.session=''; LS.set('junqi_session','');
+    try { google.accounts.id.disableAutoSelect(); } catch(e){}
+    location.reload();
+  }
+};
+
+
+/* =========================== 軍旗規則引擎 =========================== */
+const ROWS=12, COLS=5;
+const idx=(r,c)=>r*COLS+c, rc=i=>[Math.floor(i/COLS), i%COLS];
+// 棋子：40司令 39軍長 38師長 37旅長 36團長 35營長 34連長 33排長 32工兵 1地雷 2炸彈 0軍旗
+const COUNTS={40:1,39:1,38:2,37:2,36:2,35:2,34:3,33:3,32:3,1:3,2:2,0:1};
+const TYPES=[40,39,38,37,36,35,34,33,32,1,2,0];
+const NAME={ zh:{40:'司令',39:'軍長',38:'師長',37:'旅長',36:'團長',35:'營長',34:'連長',33:'排長',32:'工兵',1:'地雷',2:'炸彈',0:'軍旗'},
+             en:{40:'Marshal',39:'General',38:'Maj-Gen',37:'Brigadier',36:'Colonel',35:'Major',34:'Captain',33:'Lieut.',32:'Engineer',1:'Mine',2:'Bomb',0:'Flag'},
+             enS:{40:'FM',39:'GEN',38:'MG',37:'BRIG',36:'COL',35:'MAJ',34:'CAPT',33:'LT',32:'ENG',1:'MINE',2:'BOMB',0:'FLAG'} };
+const pname = tp => NAME[LANG==='en'?'en':'zh'][tp];
+const VAL={40:100,39:80,38:60,37:45,36:32,35:24,34:16,33:11,32:22,1:26,2:50,0:1000};
+const CAMPS=new Set([[2,1],[2,3],[3,2],[4,1],[4,3],[7,1],[7,3],[8,2],[9,1],[9,3]].map(([r,c])=>idx(r,c)));
+const HQ={ A:[idx(11,1),idx(11,3)], B:[idx(0,1),idx(0,3)] };
+const HQS=new Set([...HQ.A,...HQ.B]);
+const BACK={A:[10,11],B:[0,1]}, FRONT={A:6,B:5};
+const sideRows = s => s==='A'?[6,7,8,9,10,11]:[0,1,2,3,4,5];
+const isRailH = r => r===1||r===5||r===6||r===10;
+function railEdge(a,b){ const [r1,c1]=rc(a),[r2,c2]=rc(b);
+  if (r1===r2 && Math.abs(c1-c2)===1) return isRailH(r1);
+  if (c1===c2 && Math.abs(r1-r2)===1){ const lo=Math.min(r1,r2); if (c1===0||c1===4) return lo>=1 && lo+1<=10; if (c1===2) return lo===5; }
+  return false; }
+const ONRAIL = new Set(); for (let i=0;i<60;i++){ const [r,c]=rc(i); if (isRailH(r) || ((c===0||c===4) && r>=1 && r<=10)) ONRAIL.add(i); }
+// 公路相鄰
+const ADJ = Array.from({length:60},()=>[]);
+(function buildAdj(){
+  const link=(a,b)=>{ if(!ADJ[a].includes(b)) ADJ[a].push(b); if(!ADJ[b].includes(a)) ADJ[b].push(a); };
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++){
+    if (c+1<COLS) link(idx(r,c),idx(r,c+1));
+    if (r+1<ROWS){ if (r===5 && (c===1||c===3)) continue; link(idx(r,c),idx(r+1,c)); }
+  }
+  for (const cp of CAMPS){ const [r,c]=rc(cp); for (const [dr,dc] of [[1,1],[1,-1],[-1,1],[-1,-1]]){ const nr=r+dr,nc=c+dc;
+    if (nr<0||nr>=ROWS||nc<0||nc>=COLS) continue; if ((r<=5)!==(nr<=5)) continue; link(cp, idx(nr,nc)); } }
+})();
+const RAILN = Array.from({length:60},(_, i)=> ADJ[i].filter(j=>railEdge(i,j)));
+const RAILN_ALL = Array.from({length:60},(_, i)=>{ const out=[]; for (const d of [-1,1,-COLS,COLS]){ const j=i+d; if(j<0||j>=60) continue; if (Math.abs(d)===1 && Math.floor(j/COLS)!==Math.floor(i/COLS)) continue; if (railEdge(i,j)) out.push(j);} return out; });
+
+function canPlace(side, tp, i){
+  const [r]=rc(i);
+  if (!sideRows(side).includes(r) || CAMPS.has(i)) return false;
+  if (tp===0) return HQ[side].includes(i);
+  if (tp===1) return BACK[side].includes(r);
+  if (tp===2) return r!==FRONT[side];
+  return true;
+}
+function slotsOf(side){ const out=[]; for (const r of sideRows(side)) for (let c=0;c<COLS;c++){ const i=idx(r,c); if(!CAMPS.has(i)) out.push(i);} return out; }
+let PID=0;
+function randomSetup(side, smart){
+  const board = {};
+  const free = new Set(slotsOf(side));
+  const take = (cands)=>{ const arr=cands.filter(i=>free.has(i)); const i=arr[Math.floor(Math.random()*arr.length)]; free.delete(i); return i; };
+  const flagAt = take(HQ[side]); board[flagAt]=0;
+  const [fr,fc]=rc(flagAt);
+  let mineSpots = [...free].filter(i=>canPlace(side,1,i));
+  if (smart){ const near = ADJ[flagAt].filter(i=>free.has(i) && canPlace(side,1,i)); for (const i of near.slice(0,3)) { if (Math.random()<.85){ board[i]=1; free.delete(i);} } }
+  while (Object.values(board).filter(v=>v===1).length<3){ const i=take([...free].filter(i=>canPlace(side,1,i))); board[i]=1; }
+  for (let k=0;k<2;k++){ const i=take([...free].filter(i=>canPlace(side,2,i))); board[i]=2; }
+  const rest=[]; for (const tp of [40,39,38,38,37,37,36,36,35,35,34,34,34,33,33,33,32,32,32]) rest.push(tp);
+  if (smart){ // 高級棋子避免擠喺大本營
+    const hqOther = HQ[side].find(i=>i!==flagAt);
+    if (free.has(hqOther)){ const small=[33,34,32][Math.floor(Math.random()*3)]; board[hqOther]=small; free.delete(hqOther); rest.splice(rest.indexOf(small),1); }
+  }
+  const f=[...free]; for (let i=f.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [f[i],f[j]]=[f[j],f[i]]; }
+  rest.forEach((tp,k)=> board[f[k]]=tp);
+  return board;
+}
+function outcome(at, dt){ // 進攻方視角
+  if (dt===0) return 'flag';
+  if (at===2 || dt===2) return 'tie';
+  if (dt===1) return at===32 ? 'win' : 'lose';
+  if (at===dt) return 'tie';
+  return at>dt ? 'win' : 'lose';
+}
+function movesFrom(B, i){
+  const p=B[i]; if(!p) return [];
+  if (p.fd || p.t===0 || p.t===1) return [];
+  if (HQS.has(i) && !(G && G.rule==='random' && !p.moved)) return [];
+  const res=new Set(), side=p.side, rnd = G && G.rule==='random';
+  const hit=(q,j)=> q.side!==side && !CAMPS.has(j) && !(rnd && q.fd);
+  const tryAdd=(j)=>{ const q=B[j]; if(!q){ res.add(j); return true; } if (hit(q,j)) res.add(j); return false; };
+  for (const j of ADJ[i]) tryAdd(j);
+  if (ONRAIL.has(i)){
+    if (p.t===32){ // 工兵：鐵路任意轉彎
+      const seen=new Set([i]), q=[i];
+      while(q.length){ const u=q.shift(); for (const v of RAILN_ALL[u]){ if (seen.has(v)) continue; seen.add(v); const e=B[v];
+        if (!e){ res.add(v); q.push(v); } else if (hit(e,v)) res.add(v); } }
+    } else {
+      for (const d of [-1,1,-COLS,COLS]){ let u=i;
+        while(true){ const v=u+d; if (v<0||v>=60) break; if (Math.abs(d)===1 && Math.floor(v/COLS)!==Math.floor(u/COLS)) break; if (!railEdge(u,v)) break;
+          const e=B[v]; if (!e){ res.add(v); u=v; continue; } if (hit(e,v)) res.add(v); break; } }
+    }
+  }
+  return [...res];
+}
+function allMoves(B, side){ const out=[]; for (let i=0;i<60;i++){ const p=B[i]; if (p && p.side===side) for (const j of movesFrom(B,i)) out.push({from:i,to:j}); } return out; }
+
+/* =========================== 遊戲狀態 =========================== */
+let G = null;
+function newGame(mode, opts){
+  Board.flipView = false;
+  const rule = ['classic','random'].includes(opts.rule) ? opts.rule : 'flip';
+  G = { id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), mode, rule, hidden: rule!=='classic' ? false : (mode==='ai' ? true : !!opts.hidden),
+    difficulty: opts.difficulty||'normal', players: opts.players, board: Array(60).fill(null),
+    phase:'setup', setupSide: (rule==='classic' && mode==='pvp' && opts.hidden) ? 'A' : null, ready:{A:false,B:false}, turn:'A', first:'A',
+    moves:0, sinceBattle:0, start:Date.now(), time:{A:0,B:0}, turnStart:Date.now(), last:null, dead:{A:[],B:[]}, winner:null, reason:'' };
+  if (rule==='random') placeRandomAll();
+  else { placeSetup('A', randomSetup('A', false)); placeSetup('B', randomSetup('B', mode==='ai')); }
+  if (mode==='ai') G.ready.B = true;
+  if (rule!=='classic'){ G.ready.A = G.ready.B = true; }
+}
+function placeRandomAll(){ // 隨機翻棋：50 隻棋（紅藍混合）隨機擺喺 50 個非行營位置
+  const pcs=[]; for (const side of ['A','B']) for (const tp of TYPES) for (let k=0;k<COUNTS[tp];k++) pcs.push({side,tp});
+  const slots=[]; for (let i=0;i<60;i++) if (!CAMPS.has(i)) slots.push(i);
+  for (let i=pcs.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pcs[i],pcs[j]]=[pcs[j],pcs[i]]; }
+  G.board=Array(60).fill(null); pcs.forEach((x,k)=> G.board[slots[k]]={ id:++PID, side:x.side, t:x.tp, moved:false, rev:false, info:{}, fd:true });
+}
+function hasAction(side){ if (allMoves(G.board, side).length) return true;
+  if (G.rule==='random') return G.board.some(p=>p && p.fd);
+  return G.rule==='flip' && G.board.some(p=>p && p.side===side && p.fd); }
+function armyLeft(side){ return G.board.some(p=>p && p.side===side && p.t!==0 && p.t!==1); }
+function sideWho(s){ if (G.mode==='online') return s===Online.mySide ? t('you') : playerLabel(s); return G.mode==='ai' ? (s==='A'?t('you'):t('ai')) : sideLabel(s); }
+function placeSetup(side, map){
+  for (let i=0;i<60;i++) if (G.board[i] && G.board[i].side===side) G.board[i]=null;
+  for (const k in map) G.board[+k] = { id:++PID, side, t:map[k], moved:false, rev:false, info:{}, fd: G.rule!=='classic' };
+}
+const other = s => s==='A'?'B':'A';
+function sideLabel(s){ return s==='A' ? t('blue') : t('red'); }
+function playerLabel(s){ const p=G.players[s]; if (p.ai) return t('aiName'); return p.name || (p.cls? p.cls+'-'+p.no : (s==='A'?t('blue'):t('red'))); }
+
+function visibleTo(p){
+  if (!G) return false;
+  if (G.phase==='over' || p.rev) return true;
+  if (G.rule!=='classic') return !p.fd;
+  if (G.mode==='ai') return p.side==='A';
+  if (!G.hidden) return true;
+  if (G.phase==='setup') return G.setupSide===p.side;
+  return !!Game.peek[p.side];
+}
+
+/* =========================== AI =========================== */
+const AI = {
+  cands(B, j){ // 估計敵方棋子可能身份
+    const p=B[j]; if (p.aiK || p.rev) return [[p.t,1]];
+    if (G.rule==='random') return [[p.t,1]];
+    if (G.rule==='flip'){
+      if (!p.fd) return [[p.t,1]];
+      const pool=Object.assign({},COUNTS); for (const q of B) if (q && q.side===p.side && !q.fd) pool[q.t]--; for (const tp of G.dead[p.side]) pool[tp]--;
+      const [r]=rc(j), out=[];
+      for (const tp of TYPES){ if (pool[tp]<=0 || !canPlace(p.side,tp,j)) continue; out.push([tp,pool[tp]]); }
+      return out.length? out : [[34,1]];
+    }
+    const [r]=rc(j), info=p.info||{}, out=[];
+    for (const tp of TYPES){ let w=COUNTS[tp];
+      if (tp===0 && (p.moved || !HQ[p.side].includes(j))) continue;
+      if (tp===1 && (p.moved || !BACK[p.side].includes(r))) continue;
+      if ((tp===0||tp===1) && p.moved) continue;
+      if (tp===2 && !p.moved && r===FRONT[p.side]) continue;
+      if (info.gt && !(tp>=32 && tp>info.gt)) continue;
+      if (info.mog && !(tp===1 || (tp>=32 && tp>info.mog))) continue;
+      if (tp===0) w*=1.6;
+      out.push([tp,w]); }
+    return out.length? out : [[34,1]];
+  },
+  threatOn(B, j, mine){ // 敵方下一步攻擊 j 嘅風險
+    if (CAMPS.has(j)) return 0;
+    const me=B[j]; let worst=0;
+    for (let i=0;i<60;i++){ const e=B[i]; if (!e || e.side===me.side) continue;
+      if (!movesFrom(B,i).includes(j)) continue;
+      const cs=this.cands(B,i); let W=0, risk=0;
+      for (const [tp,w] of cs){ if (tp===0||tp===1) continue; W+=w; const o=outcome(tp, me.t);
+        if (o==='win'||o==='flag') risk+=w*VAL[me.t]; else if (o==='tie') risk+=w*(VAL[me.t]-VAL[tp])*0.6; }
+      if (W) worst=Math.max(worst, risk/W); }
+    return worst;
+  },
+  flagThreat(B, side){ const fi=B.findIndex(p=>p&&p.side===side&&p.t===0); if (fi<0) return 0;
+    if (G.rule==='random' && B[fi].fd) return 0;
+    let tg=[fi], w=1;
+    if (G.rule==='flip' && B[fi].fd){ tg=HQ[side].filter(i=>B[i] && B[i].side===side && B[i].fd); w=tg.length>1?0.5:1; } // AI 唔知自己軍旗喺邊
+    let th=0; for (let i=0;i<60;i++){ const e=B[i]; if (e && e.side!==side){ const ms=movesFrom(B,i); for (const j of tg) if (ms.includes(j)) th=Math.max(th,w); } } return th; },
+  choose(side){
+    const B=G.board, diff=G.difficulty, moves=allMoves(B, side);
+    const flips = G.rule==='flip' ? B.map((p,i)=>p&&p.side===side&&p.fd?i:-1).filter(i=>i>=0) : G.rule==='random' ? B.map((p,i)=>p&&p.fd?i:-1).filter(i=>i>=0) : [];
+    if (!moves.length && !flips.length) return null;
+    if (diff==='easy' && Math.random()<.3){ const all=[...moves, ...flips.map(i=>({flip:i}))]; return all[Math.floor(Math.random()*all.length)]; }
+    const noise = diff==='easy'?40: diff==='normal'?9:2;
+    const fwd = side==='B'?1:-1;
+    const curFlag = diff!=='easy' ? this.flagThreat(B, side) : 0;
+    let best=null, bs=-1e9;
+    if (flips.length){
+      const movable = B.filter(p=>p && p.side===side && !p.fd && p.t!==0 && p.t!==1).length;
+      for (const i of flips){ const [r]=rc(i);
+        let s = 3 + (movable<3?8:movable<6?3:0) + (G.rule==='random' ? 0 : (side==='B'? r : 11-r)*0.35);
+        if (diff!=='easy') s -= curFlag*50;
+        s += (Math.random()-.5)*noise;
+        if (s>bs){ bs=s; best={flip:i}; } }
+    }
+    for (const m of moves){
+      const a=B[m.from], d=B[m.to]; let s=0;
+      const sim=B.slice();
+      if (d){
+        const cs=this.cands(B,m.to); let W=0; cs.forEach(c=>W+=c[1]);
+        for (const [tp,w] of cs){ const o=outcome(a.t,tp), p=w/W;
+          if (o==='flag') s+=p*5000; else if (o==='win') s+=p*(VAL[tp]+4); else if (o==='lose') s-=p*VAL[a.t]; else s+=p*(VAL[tp]-VAL[a.t]); }
+        if (a.t===40 || a.t===39) s-=6; // 唔好輕易用大棋試探
+        sim[m.to]=a; sim[m.from]=null;
+      } else {
+        sim[m.to]=a; sim[m.from]=null;
+        const [r1]=rc(m.from), [r2]=rc(m.to);
+        const adv=(r2-r1)*fwd, k = a.t===32?2.2 : a.t>=38?1.6 : a.t===2?0.8 : 1.2;
+        s += adv*k;
+        if (CAMPS.has(m.to)) s+=2.5;
+        if (HQS.has(m.to) && HQ[other(side)].includes(m.to)) s+=3;
+        if (HQS.has(m.to) && HQ[side].includes(m.to)) s-=20;
+        if (a.lastFrom===m.to) s-=6;
+        if (diff!=='easy'){ s += this.threatOn(B, m.from)*0.9; s -= this.threatOn(sim, m.to)*0.9; }
+        // 守護軍旗：大本營附近的棋子不要亂走
+        if (diff==='hard'){ const fi=B.findIndex(p=>p&&p.side===side&&p.t===0); if (fi>=0 && ADJ[fi].includes(m.from)) s-=5; }
+      }
+      if (diff!=='easy'){ const ft=this.flagThreat(sim, side); s -= ft*3000; if (curFlag && !ft) s+=200; }
+      s += (Math.random()-.5)*noise;
+      if (s>bs){ bs=s; best=m; }
+    }
+    return best;
+  },
+  learn(att, def, res, attIdx){ // AI 根據交戰結果推斷（只記錄 AI 對敵方嘅認知）
+    const aiSide = 'B';
+    if (att.side!==aiSide && def.side===aiSide){ // 玩家進攻 AI
+      if (res==='win'){ if (def.t===1) { att.aiK=true; } else if (def.t>=32){ att.info.gt=Math.max(att.info.gt||0, def.t); } }
+    } else if (att.side===aiSide && def.side!==aiSide){ // AI 進攻玩家
+      if (res==='lose' && att.t>=32){ if (!def.moved) def.info.mog=Math.max(def.info.mog||0, att.t); else def.info.gt=Math.max(def.info.gt||0, att.t); }
+    }
+  }
+};
+
+/* =========================== 遊戲流程 =========================== */
+const Game = {
+  sel:-1, targets:[], peek:{A:false,B:false}, anims:[], busy:false, saveTimer:null, tick:null,
+  canControl(side){ if (!G || G.phase==='over') return false; if (G.mode==='ai') return side==='A'; if (G.mode==='online') return side===Online.mySide && !Online.syncing; return true; },
+  start(){ this.sel=-1; this.targets=[]; this.peek={A:false,B:false}; this.busy=false; UI.show('game'); Board.resize(); UI.panels(); Board.draw();
+    clearInterval(this.tick); this.tick=setInterval(()=>{ if(G && G.phase==='play') UI.panelTimes(); },1000);
+    if (G.mode==='online'){ Snd.setIntensity(1); }
+    else if (G.phase==='setup' && G.rule!=='classic') this.beginPlay();
+    else if (G.phase==='setup'){ if (G.mode==='pvp' && G.hidden) this.announceSetup(); else UI.toast(t('setupTip')); }
+    else if (G.phase==='play' && G.mode==='ai' && G.turn==='B') this.aiTurn();
+    Server.call('apiLog','start_game', G.mode+' '+G.rule+' '+(G.mode==='ai'?G.difficulty:(G.hidden?'hidden':'open'))).catch(()=>{});
+  },
+  async announceSetup(){
+    const s=G.setupSide; Board.draw(); UI.panels();
+    await Pop.fire({ icon:'info', title:t('hideTurnTitle',{who:playerLabel(s)}), text:t('hideTurnText',{other:playerLabel(other(s))}), confirmButtonText:'OK' }, s);
+  },
+  tap(i){
+    if (!G || this.busy || i<0) return;
+    const p=G.board[i];
+    if (G.phase==='setup'){
+      const allowed = s => !G.ready[s] && (G.mode==='ai' ? s==='A' : (G.hidden ? G.setupSide===s : true));
+      if (this.sel>=0){
+        const a=G.board[this.sel];
+        if (p && p.side===a.side && i!==this.sel){
+          if (canPlace(a.side, a.t, i) && canPlace(p.side, p.t, this.sel)){ G.board[i]=a; G.board[this.sel]=p; Snd.swap(); }
+          else { UI.toast(t('swapBad'), 'bad'); Snd.error(); }
+          this.sel=-1; Board.draw(); return;
+        }
+        this.sel=-1;
+      }
+      if (p && allowed(p.side)) this.sel=i;
+      Board.draw(); UI.panels(); return;
+    }
+    if (G.phase!=='play') return;
+    if (this.sel>=0 && this.targets.includes(i)){ this.doMove(this.sel, i); return; }
+    if (p && p.fd && (G.rule==='random' || p.side===G.turn) && this.canControl(G.turn)){
+      if (this.sel===i){ this.flip(i); return; }
+      this.sel=i; this.targets=[]; UI.toast(t('tapAgainFlip')); Snd.hint();
+    } else if (p && p.side===G.turn && this.canControl(p.side)){
+      const ms=movesFrom(G.board,i); this.sel=i; this.targets=ms; if (!ms.length) Snd.error(); else Snd.select();
+    } else { this.sel=-1; this.targets=[]; }
+    Board.draw(); UI.panels();
+  },
+  randomize(side){ if (!G || G.phase!=='setup' || G.ready[side]) return; placeSetup(side, randomSetup(side, false)); this.sel=-1; Snd.swap(); Board.draw(); },
+  async ready(side){
+    if (!G || G.phase!=='setup') return;
+    G.ready[side]=true; this.sel=-1;
+    if (G.mode==='pvp' && G.hidden && side==='A' && !G.ready.B){ G.setupSide='B'; await this.announceSetup(); return; }
+    UI.panels(); Board.draw();
+    if (G.ready.A && G.ready.B) this.beginPlay();
+  },
+  async beginPlay(){
+    G.phase='play'; G.setupSide=null; G.start=Date.now(); G.turnStart=Date.now();
+    if (G.mode==='pvp'){ G.first = Math.random()<.5?'A':'B'; G.turn=G.first; Board.draw(); UI.panels();
+      await Pop.fire({ icon:'info', title:t('firstMove',{who:playerLabel(G.turn)}), text: G.rule==='random' ? t('randomStart') : G.rule==='flip' ? t('flipStart') : (G.hidden? t('hiddenSetupDone'):''), timer:2200, showConfirmButton:false }, G.turn);
+    } else { G.turn='A'; if (G.rule!=='classic') UI.toast(t(G.rule==='random'?'randomStart':'flipStart')); }
+    Snd.start(); Snd.setIntensity(1); Board.draw(); UI.panels(); this.saveSoon();
+  },
+  async doMove(from, to, opt){
+    this._local = (opt && opt.remote) ? null : { t:'move', from, to };
+    const a=G.board[from], d=G.board[to];
+    this.sel=-1; this.targets=[]; this.busy=true;
+    const now=Date.now(); G.time[G.turn]+= (now-G.turnStart)/1000;
+    a.lastFrom=from; G.last={from,to};
+    await Board.animate(a, from, to);
+    let res=null;
+    if (!d){ G.board[to]=a; G.board[from]=null; a.moved=true; Snd.move(); G.sinceBattle++; }
+    else {
+      res=outcome(a.t,d.t); G.sinceBattle=0;
+      if (G.mode==='ai') AI.learn(a,d,res,from);
+      a.moved=true; a.fd=false; d.fd=false;
+      if (res==='flag' || res==='win'){ G.board[to]=a; G.board[from]=null; G.dead[d.side].push(d.t); }
+      else if (res==='lose'){ G.board[from]=null; G.dead[a.side].push(a.t); }
+      else { G.board[from]=null; G.board[to]=null; G.dead[a.side].push(a.t); G.dead[d.side].push(d.t); }
+      Board.flash(to, res); Snd.battle(a,d,res);
+      this.battleMsg(a,d,res);
+      for (const s of ['A','B']) if (G.dead[s].includes(40) && !G['mr'+s]){ G['mr'+s]=true; const f=G.board.find(p=>p&&p.side===s&&p.t===0); if (f){ f.rev=true; f.fd=false; setTimeout(()=>{ UI.toast(t('marshalDown',{side:sideLabel(s)}),'tie'); Snd.alarm(); },900);} }
+    }
+    G.moves++;
+    this.busy=false;
+    if (res==='flag'){ return this.endTurn([a.side, 'flag']); }
+    this.endTurn();
+  },
+  async flip(i, opt){
+    const p=G.board[i]; if (!p || !p.fd || (this.busy && !(opt && opt.remote))) return;
+    this._local = (opt && opt.remote) ? null : { t:'flip', i };
+    this.busy=true; this.sel=-1; this.targets=[];
+    const now=Date.now(); G.time[G.turn]+=(now-G.turnStart)/1000;
+    p.fd=false; G.last={from:i,to:i};
+    Board.flash(i,'flip'); Snd.flip();
+    const msg = G.rule==='random' ? t('flippedR',{who:sideWho(G.turn),owner:sideWho(p.side),p:pname(p.t)}) : t('flipped',{who:sideWho(p.side),p:pname(p.t)});
+    UI.toast(msg); (G.log=G.log||[]).push({m:'#'+(G.moves+1)+' '+msg,c:''});
+    G.moves++;
+    await sleep(380);
+    this.busy=false;
+    this.endTurn();
+  },
+  endTurn(forced){
+    const nx=other(G.turn); let fin=forced||null;
+    if (!fin && G.rule==='random'){ for (const s of [nx, G.turn]) if (!armyLeft(s)){ fin=[other(s),'nomove']; break; } }
+    if (!fin && !hasAction(nx)) fin=[G.turn, 'nomove'];
+    if (!fin && G.sinceBattle>=120) fin=['draw','limit'];
+    if (!fin){ G.turn=nx; G.turnStart=Date.now(); }
+    if (G.mode==='online' && this._local){ Online.push(this._local, fin); this._local=null; }
+    if (fin) return this.finish(fin[0], fin[1]);
+    Board.draw(); UI.panels(); this.saveSoon();
+    if (G.mode==='ai' && G.turn==='B') this.aiTurn();
+  },
+  battleMsg(a,d,res){
+    let msg='', cls='';
+    if (G.rule!=='classic'){
+      const head = sideWho(a.side)+' '+pname(a.t)+' ⚔ '+sideWho(d.side)+' '+pname(d.t);
+      const rr = res==='win'||res==='flag' ? (d.t===1?t('mineClear'):t('atkWin')) : res==='lose' ? (d.t===1?t('mineHit'):t('atkLose')) : (a.t===2||d.t===2?t('bombHit'):t('atkTie'));
+      msg = head+'<br>'+rr; cls = res==='lose'?'bad':res==='tie'?'tie':'';
+      if (G.mode==='ai' && d.side==='A') cls = res==='win'?'bad':res==='lose'?'':cls;
+      if (G.mode==='online' && d.side===Online.mySide) cls = res==='win'?'bad':res==='lose'?'':cls;
+      if ((res==='win') && (G.mode==='pvp' || a.side===(G.mode==='online'?Online.mySide:'A'))) Fx.confetti({particleCount:35,spread:50,origin:Board.origin(G.last?G.last.to:0)});
+    } else if (G.mode==='ai'){
+      if (a.side==='A'){
+        const who=t('youAtk',{p:pname(a.t)});
+        if (res==='flag'||res==='win'){ msg = d.t===1 ? t('mineClear') : who+' '+t('atkWin'); Fx.confetti({particleCount:40,spread:50,origin:Board.origin(G.last?G.last.to:0)}); }
+        else if (res==='lose'){ msg = who+' '+t('atkLose'); cls='bad'; }
+        else { msg = a.t===2||d.t===2 ? t('bombHit') : who+' '+t('atkTie'); cls='tie'; }
+      } else {
+        if (res==='win'){ msg=t('defLose',{p:pname(d.t)}); cls='bad'; }
+        else if (res==='lose'){ msg = d.t===1 ? t('mineHit') : t('defWin'); }
+        else { msg=t('defTie',{p:pname(d.t)}); cls='tie'; }
+      }
+    } else {
+      const head = sideLabel(a.side) + (G.hidden ? '' : ' '+pname(a.t)) + ' ⚔ ' + sideLabel(d.side) + (G.hidden ? '' : ' '+pname(d.t));
+      const r = res==='win'||res==='flag' ? (d.t===1?t('mineClear'):t('atkWin')) : res==='lose' ? (d.t===1 && !G.hidden ? t('mineHit') : t('atkLose')) : t('atkTie');
+      msg = head + '<br>' + r; cls = res==='lose'?'bad':res==='tie'?'tie':'';
+      if (res==='win') Fx.confetti({particleCount:30,spread:45,origin:Board.origin(G.last?G.last.to:0)});
+    }
+    UI.toast(msg, cls);
+    (G.log=G.log||[]).push({ m:'#'+(G.moves+1)+' '+msg.replace('<br>',' → '), c:cls }); if (G.log.length>40) G.log.shift();
+  },
+  aiTurn(){
+    this.busy=true; UI.panels();
+    setTimeout(()=>{ if (!G || G.phase!=='play' || G.turn!=='B') { this.busy=false; return; }
+      const m=AI.choose('B'); this.busy=false;
+      if (!m) return this.finish('A','nomove');
+      if (m.flip!=null) this.flip(m.flip); else this.doMove(m.from, m.to);
+    }, 500 + Math.random()*500);
+  },
+  async resign(side){
+    const r = await Pop.fire({ icon:'question', title:t('confirmResign'), showCancelButton:true, confirmButtonText:t('yes'), cancelButtonText:t('cancel') }, side);
+    if (!r.isConfirmed || !G || G.phase==='over') return;
+    if (G.mode==='online') Online.push({ t:'end' }, [other(side), 'resign']);
+    this.finish(other(side), 'resign');
+  },
+  async offerDraw(side){
+    const r = await Pop.fire({ icon:'question', title:t('offerDraw',{side:playerLabel(side)}), showCancelButton:true, confirmButtonText:t('agree'), cancelButtonText:t('refuse') }, other(side));
+    if (r.isConfirmed) this.finish('draw','draw'); else UI.toast(t('drawRefused'),'bad');
+  },
+  async finish(winner, reason){
+    if (!G || G.phase==='over') return;
+    G.time[G.turn]+= (Date.now()-G.turnStart)/1000;
+    G.phase='over'; G.winner=winner; G.reason=reason; this.sel=-1; this.targets=[];
+    clearTimeout(this.saveTimer);
+    Board.draw(); UI.panels();
+    const dur=Math.round((Date.now()-G.start)/1000);
+    let players=G.players;
+    if (G.mode==='online'){ const me=Online.mySide; players={}; for (const s of ['A','B']) players[s]=Object.assign({}, G.players[s], s===me?{ self:true }:{ self:false, remote:true }); }
+    const match={ id:G.id, mode:G.mode, rule:G.rule, difficulty:G.difficulty, hidden:G.hidden, winner, reason, moves:G.moves, durationSec:dur, players };
+    const gm=G;
+    const reasonTxt = (I18N[LANG].winBy||{})[reason] || '';
+    let title, icon='success', html='';
+    if (winner==='draw'){ title=t('drawRes'); icon='info'; }
+    else if (G.mode==='ai'){ title = winner==='A'? t('youWin') : t('youLose'); icon = winner==='A'?'success':'error'; }
+    else if (G.mode==='online'){ title = winner===Online.mySide ? t('youWin') : t('youLose'); icon = winner===Online.mySide?'success':'error'; }
+    else { title=t('sideWins',{side:playerLabel(winner)}); }
+    Snd.setIntensity(0); if (winner==='draw') Snd.drawSnd(); else if (G.mode==='pvp' || (G.mode==='online' ? winner===Online.mySide : winner==='A')){ Snd.victory(); Fx.big(); } else Snd.defeat();
+    html = `<div style="font-size:14px">${esc(reasonTxt)}<br>${t('moves')}: <b>${G.moves}</b> · ${t('time')}: <b>${fmtTime(dur)}</b></div><div id="saveNote" class="lbl" style="margin-top:8px">⏳</div>`;
+    let note='⏳';
+    const recP = Server.call('apiRecordMatch', match).then(res=>{
+      if (res && res.save){ App.save=res.save; App.renderStats(); }
+      const el=document.getElementById('saveNote');
+      const names = (res.saved||[]).map(s=>playerLabel(s)).join('、');
+      const miss = (res.missing||[]).map(s=>playerLabel(s)).join('、');
+      note = (App.user && App.user.isGuest) ? '💾 '+t('guestSaved') : (names? '✅ '+t('savedFor',{list:esc(names)}) : '') + (miss? '<br>⚠ '+t('notFound',{list:esc(miss)}) : '');
+      if (el) el.innerHTML = note;
+      const h = res.save && res.save.history && res.save.history[0];
+      if (h && G && h.id===G.id && h.newRecord && h.result==='win') setTimeout(()=>{ Fx.big(); Pop.toast(t('newRecord',{n:res.save.stats.bestStreak}),'success'); }, 600);
+      return res;
+    }).catch(e=>{ note='⚠ '+t('netErr'); const el=document.getElementById('saveNote'); if(el) el.innerHTML=note; });
+    await sleep(700);
+    const r = await Pop.fire({ icon, title, html, showCancelButton:true, confirmButtonText: gm.mode==='online' ? t('backLobby') : t('again'), cancelButtonText:t('home'), allowOutsideClick:false,
+      didOpen:()=>{ const el=document.getElementById('saveNote'); if (el) el.innerHTML=note; } });
+    await recP;
+    await App.askGuestRecord(match, gm);
+    if (gm.mode==='online'){ Online.leave(); G=null; if (r.isConfirmed) Online.openLobby(); else UI.show('home'); return; }
+    if (r.isConfirmed){ if (gm.mode==='ai') App.startAI(); else App.startPvp(true); }
+    else { G=null; UI.show('home'); }
+  },
+  serialize(){ if (!G || G.phase==='over' || G.mode==='online') return null; return JSON.parse(JSON.stringify(G)); },
+  saveSoon(){ clearTimeout(this.saveTimer); this.saveTimer=setTimeout(()=>this.saveNow(), 4000); },
+  saveNow(){ clearTimeout(this.saveTimer); if (!App.user) return; const cur=this.serialize(); if (!cur) return;
+    Server.call('apiSaveState',{ current:cur }).catch(()=>{}); if (App.save) App.save.current=cur; }
+};
+
+/* =========================== 棋盤繪圖 =========================== */
+const Board = {
+  cv:null, ctx:null, u:40, W:0, H:0, dpr:1, flashes:[], anim:null,
+  init(){ this.cv=$('#board'); this.ctx=this.cv.getContext('2d');
+    this.cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const r=this.cv.getBoundingClientRect(); Game.tap(this.hit(e.clientX-r.left, e.clientY-r.top)); });
+    const onRs=()=>{ if ($('#screen-game').classList.contains('on')){ this.resize(); this.draw(); } };
+    window.addEventListener('resize', onRs);
+    if (window.ResizeObserver) new ResizeObserver(onRs).observe($('#boardBox'));
+  },
+  resize(){
+    const box=$('#boardBox'), W=box.clientWidth-4, H=box.clientHeight-4;
+    const u=Math.max(30, Math.min((W-12)/4.84, (H-12)/7.66));
+    this.u=u; this.W=Math.floor(4.84*u+12); this.H=Math.floor(7.66*u+12);
+    this.dpr=Math.min(3, window.devicePixelRatio||1);
+    this.cv.width=this.W*this.dpr; this.cv.height=this.H*this.dpr; this.cv.style.width=this.W+'px'; this.cv.style.height=this.H+'px';
+    this.ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
+  },
+  flipView:false,
+  pos(i){ let [r,c]=rc(i); const u=this.u; if (this.flipView){ r=11-r; c=4-c; } return [6+0.42*u + c*u, 6+0.26*u + r*0.62*u + (r>=6?0.36*u:0)]; },
+  origin(i){ const [x,y]=this.pos(i), rect=this.cv.getBoundingClientRect(); return { x:(rect.left+x)/innerWidth, y:(rect.top+y)/innerHeight }; },
+  hit(x,y){ let best=-1, bd=1e9; for (let i=0;i<60;i++){ const [px,py]=this.pos(i); const dx=(x-px)/(this.u*0.5), dy=(y-py)/(this.u*0.31); const d=dx*dx+dy*dy; if (d<bd){bd=d;best=i;} } return bd<=1.4?best:-1; },
+  rr(x,y,w,h,r){ const c=this.ctx; c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); },
+  animate(p, from, to){ return new Promise(res=>{ this.anim={p,from,to,t0:performance.now(),dur:200,res}; this.loop(); }); },
+  flash(i,res){ this.flashes.push({i, res, t0:performance.now()}); this.loop(); },
+  looping:false,
+  loop(){ if (this.looping) return; this.looping=true; const step=()=>{ this.draw(); const now=performance.now();
+      if (this.anim && now-this.anim.t0>=this.anim.dur){ const a=this.anim; this.anim=null; a.res(); }
+      this.flashes=this.flashes.filter(f=>now-f.t0<600);
+      if (this.anim || this.flashes.length) requestAnimationFrame(step); else { this.looping=false; this.draw(); } };
+    requestAnimationFrame(step); },
+  draw(){
+    if (!G || !this.ctx) return;
+    const c=this.ctx, u=this.u; c.clearRect(0,0,this.W,this.H);
+    // 背景
+    const g=c.createLinearGradient(0,0,0,this.H); const cTop=this.flipView?'rgba(34,211,238,.10)':'rgba(244,63,94,.10)', cBot=this.flipView?'rgba(244,63,94,.10)':'rgba(34,211,238,.10)'; g.addColorStop(0,cTop); g.addColorStop(.5,'rgba(10,14,35,.55)'); g.addColorStop(1,cBot);
+    c.fillStyle=g; this.rr(1,1,this.W-2,this.H-2,18); c.fill(); c.strokeStyle='rgba(255,255,255,.12)'; c.lineWidth=1; c.stroke();
+    // 山界
+    const [, y5]=this.pos(idx(5,0)), [, y6]=this.pos(idx(6,0)); const my=(y5+y6)/2;
+    c.fillStyle='rgba(139,92,246,.10)'; c.fillRect(4, y5+0.26*u, this.W-8, y6-y5-0.52*u);
+    c.font=`800 ${Math.round(u*0.2)}px "Noto Sans HK",sans-serif`; c.textAlign='center'; c.textBaseline='middle'; c.fillStyle='rgba(196,181,253,.55)';
+    for (const col of [1,3]){ const [x]=this.pos(idx(5,col)); c.fillText(LANG==='en'?'⛰ RIDGE':'⛰ 山界', x, my); }
+    // 公路
+    c.strokeStyle='rgba(148,163,184,.35)'; c.lineWidth=Math.max(1,u*0.025);
+    for (let i=0;i<60;i++) for (const j of ADJ[i]) if (j>i && !railEdge(i,j)){ const [x1,y1]=this.pos(i),[x2,y2]=this.pos(j); c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+    // 鐵路
+    c.save(); c.shadowColor='rgba(34,211,238,.8)'; c.shadowBlur=8; c.strokeStyle='rgba(34,211,238,.75)'; c.lineWidth=Math.max(2,u*0.06);
+    for (let i=0;i<60;i++) for (const j of RAILN_ALL[i]) if (j>i){ const [x1,y1]=this.pos(i),[x2,y2]=this.pos(j); c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+    c.restore();
+    c.save(); c.setLineDash([u*0.04,u*0.1]); c.strokeStyle='rgba(5,6,15,.85)'; c.lineWidth=Math.max(1,u*0.025);
+    for (let i=0;i<60;i++) for (const j of RAILN_ALL[i]) if (j>i){ const [x1,y1]=this.pos(i),[x2,y2]=this.pos(j); c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+    c.restore();
+    // 站點
+    const pw=u*0.8, ph=u*0.48;
+    for (let i=0;i<60;i++){ const [x,y]=this.pos(i);
+      if (CAMPS.has(i)){ c.beginPath(); c.ellipse(x,y,pw*0.42,ph*0.62,0,0,Math.PI*2); c.fillStyle='rgba(5,6,15,.85)'; c.fill(); c.strokeStyle='rgba(163,230,53,.6)'; c.lineWidth=1.5; c.stroke(); }
+      else if (HQS.has(i)){ this.rr(x-pw/2-3,y-ph/2-3,pw+6,ph+6,ph*0.5); c.fillStyle='rgba(5,6,15,.85)'; c.fill(); c.strokeStyle='rgba(251,191,36,.65)'; c.lineWidth=1.5; c.stroke();
+        c.fillStyle='rgba(251,191,36,.35)'; c.font=`700 ${Math.round(u*0.15)}px sans-serif`; c.fillText(LANG==='en'?'HQ':'大本營', x, y); }
+      else { this.rr(x-pw*0.4,y-ph*0.4,pw*0.8,ph*0.8,5); c.fillStyle='rgba(5,6,15,.8)'; c.fill(); c.strokeStyle='rgba(148,163,184,.3)'; c.lineWidth=1; c.stroke(); }
+    }
+    // 上一步
+    if (G.last && G.phase!=='setup'){ for (const k of [G.last.from, G.last.to]){ const [x,y]=this.pos(k); c.strokeStyle='rgba(251,191,36,.8)'; c.lineWidth=2; c.setLineDash([4,3]); this.rr(x-pw/2-4,y-ph/2-4,pw+8,ph+8,10); c.stroke(); c.setLineDash([]); } }
+    // 佈陣可放位置提示
+    if (G.phase==='setup' && Game.sel>=0){ const a=G.board[Game.sel]; for (let i=0;i<60;i++){ const p=G.board[i]; if (p && p.side===a.side && i!==Game.sel && canPlace(a.side,a.t,i) && canPlace(p.side,p.t,Game.sel)){ const [x,y]=this.pos(i); c.strokeStyle='rgba(163,230,53,.9)'; c.lineWidth=2; this.rr(x-pw/2-3,y-ph/2-3,pw+6,ph+6,9); c.stroke(); } } }
+    // 棋子
+    const A=this.anim;
+    for (let i=0;i<60;i++){ const p=G.board[i]; if (!p || (A && A.p===p)) continue; this.piece(p, ...this.pos(i), i===Game.sel); }
+    if (A){ const k=Math.min(1,(performance.now()-A.t0)/A.dur), e=1-Math.pow(1-k,3); const [x1,y1]=this.pos(A.from),[x2,y2]=this.pos(A.to); this.piece(A.p, x1+(x2-x1)*e, y1+(y2-y1)*e, true); }
+    // 可走位置
+    for (const j of Game.targets){ const [x,y]=this.pos(j); const enemy=G.board[j];
+      if (enemy){ c.save(); c.strokeStyle='#f43f5e'; c.shadowColor='#f43f5e'; c.shadowBlur=10; c.lineWidth=2.5; this.rr(x-pw/2-3,y-ph/2-3,pw+6,ph+6,10); c.stroke(); c.restore();
+        c.fillStyle='#f43f5e'; c.font=`900 ${Math.round(u*0.2)}px sans-serif`; c.fillText('⚔', x+pw/2, y-ph/2); }
+      else { c.beginPath(); c.arc(x,y,u*0.09,0,Math.PI*2); c.fillStyle='rgba(163,230,53,.95)'; c.shadowColor='#a3e635'; c.shadowBlur=10; c.fill(); c.shadowBlur=0; } }
+    // 交戰閃光
+    const now=performance.now();
+    for (const f of this.flashes){ const k=(now-f.t0)/600; const [x,y]=this.pos(f.i); c.beginPath(); c.arc(x,y,u*(0.2+0.6*k),0,Math.PI*2);
+      c.strokeStyle = f.res==='flip'?`rgba(167,139,250,${1-k})`: f.res==='lose'?`rgba(244,63,94,${1-k})`: f.res==='tie'?`rgba(251,191,36,${1-k})`:`rgba(34,211,238,${1-k})`; c.lineWidth=4*(1-k)+1; c.stroke(); }
+  },
+  piece(p, x, y, selected){
+    const c=this.ctx, u=this.u, pw=u*0.8, ph=u*0.48, vis=visibleTo(p);
+    c.save();
+    if (selected){ c.shadowColor=(G.rule==='random'&&p.fd)?'#c4b5fd':p.side==='A'?'#22d3ee':'#fb7185'; c.shadowBlur=18; }
+    const g=c.createLinearGradient(x, y-ph/2, x, y+ph/2);
+    const neutral = G.rule==='random' && p.fd && G.phase!=='over';
+    if (neutral){ g.addColorStop(0,'#8b8fb8'); g.addColorStop(1,'#2e3150'); }
+    else if (p.side==='A'){ g.addColorStop(0,'#38bdf8'); g.addColorStop(1,'#1e3a8a'); } else { g.addColorStop(0,'#fb7185'); g.addColorStop(1,'#7f1d1d'); }
+    this.rr(x-pw/2,y-ph/2,pw,ph,u*0.1); c.fillStyle=g; c.fill(); c.shadowBlur=0;
+    c.strokeStyle = selected ? '#fff' : 'rgba(255,255,255,.35)'; c.lineWidth = selected?2.2:1; c.stroke();
+    // 高光
+    this.rr(x-pw/2+2,y-ph/2+2,pw-4,ph*0.38,u*0.08); c.fillStyle='rgba(255,255,255,.12)'; c.fill();
+    c.translate(x,y);
+    if (G.mode==='pvp' && p.side==='B' && !neutral) c.rotate(Math.PI);
+    c.textAlign='center'; c.textBaseline='middle'; c.fillStyle='#fff';
+    if (vis){
+      const label = LANG==='en' ? NAME.enS[p.t] : NAME.zh[p.t];
+      c.font = `900 ${Math.round(u*(LANG==='en'?0.17:0.22))}px "Noto Sans HK","PingFang HK",sans-serif`;
+      c.shadowColor='rgba(0,0,0,.6)'; c.shadowBlur=3; c.fillText(label, 0, 1);
+      if (p.rev && G.phase!=='over'){ c.font=`700 ${Math.round(u*0.13)}px sans-serif`; c.fillText('👁', pw/2-8, -ph/2+7); }
+    } else if (selected && p.fd){
+      c.font=`900 ${Math.round(u*(LANG==='en'?0.16:0.2))}px "Noto Sans HK",sans-serif`; c.fillStyle='#fff'; c.fillText(LANG==='en'?'FLIP?':'翻開?', 0, 1);
+    } else {
+      c.font=`900 ${Math.round(u*0.22)}px sans-serif`; c.fillStyle='rgba(255,255,255,.55)'; c.fillText(neutral?'?':(p.side==='A'?'◆':'★'), 0, 1);
+    }
+    c.restore();
+  }
+};
+
+/* =========================== 介面 =========================== */
+const UI = {
+  show(name){ if (name!=='game') Snd.setIntensity(0); document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on')); $('#screen-'+name).classList.add('on');
+    if (name==='pvp') App.fillPvp(); if (name==='home') App.renderHome(); },
+  applyLang(){
+    document.documentElement.lang = LANG==='en'?'en':'zh-HK';
+    document.querySelectorAll('[data-i18n]').forEach(el=>{ el.innerHTML = t(el.dataset.i18n); });
+    document.title = t('title')+' · Junqi Arena';
+    if (G && $('#screen-game').classList.contains('on')){ this.panels(); Board.draw(); }
+    if ($('#screen-home').classList.contains('on')) App.renderHome();
+    if ($('#screen-records').classList.contains('on')) App.lastRec && App.lastRec();
+    if ($('#screen-pvp').classList.contains('on')) App.fillPvp(true);
+  },
+  toggleLang(){ LANG = LANG==='zh'?'en':'zh'; this.applyLang(); App.saveSettings(); },
+  showRules(){ Pop.fire({ title:'📖 '+t('rules'), html:t('ruleHtml'), width:640, confirmButtonText:'OK' }); },
+  toast(msg, cls=''){
+    const show=(el)=>{ el.className='toast '+cls; el.innerHTML=msg; void el.offsetWidth; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1700); };
+    show($('#toast'));
+    if (G && G.mode==='pvp') show($('#toastTop')); else $('#toastTop').classList.remove('show');
+  },
+  panelTimes(){ for (const s of ['A','B']){ const el=document.getElementById('time-'+s); if (!el) continue; let tt=G.time[s]; if (G.phase==='play' && G.turn===s) tt+=(Date.now()-G.turnStart)/1000; el.textContent=fmtTime(tt); } },
+  panels(){
+    if (!G) return;
+    const pB=$('#panel-B'); pB.classList.toggle('flip', G.mode==='pvp');
+    for (const s of ['A','B']){
+      const el=$(Board.flipView ? (s==='A'?'#panel-B':'#panel-A') : '#panel-'+s), pl=G.players[s];
+      const bottom = el.id==='panel-A';
+      el.classList.remove('A','B'); el.classList.add(s);
+      const alive=G.board.filter(p=>p&&p.side===s).length;
+      const isTurn = G.phase==='play' && G.turn===s;
+      el.classList.toggle('turn', isTurn || (G.phase==='setup' && !G.ready[s] && (G.mode==='ai'? s==='A' : (!G.hidden || G.setupSide===s))));
+      let status;
+      if (G.phase==='setup') status = G.ready[s] ? t('ready') : (G.mode==='pvp' && G.hidden && G.setupSide!==s ? t('waiting') : t('setupPhase'));
+      else if (G.phase==='over') status = G.winner==='draw'? t('drawRes') : (G.winner===s? t('win') : t('lose'));
+      else if (G.mode==='online') status = isTurn ? (s===Online.mySide ? t('yourTurn') : t('oppTurn')) : t('waiting');
+      else status = isTurn ? (pl.ai ? t('thinking') : t('yourTurn')) : t('waiting');
+      const ruleS = t({flip:'ruleFlipS',random:'ruleRandomS',classic:'ruleClassicS'}[G.rule]||'ruleClassicS');
+      const sub = pl.ai ? `${t('difficulty')}: ${t({easy:'dEasy',normal:'dNormal',hard:'dHard'}[G.difficulty])} · ${ruleS}` : [pl.cls&&pl.no?`${pl.cls}-${pl.no}`:'', s==='A'?t('blue'):t('red'), ruleS].filter(Boolean).join(' · ');
+      const nfd = G.board.filter(p=>p&&p.side===s&&p.fd).length;
+      const showDead = G.rule!=='classic' || G.mode==='pvp' || s==='A' || G.phase==='over';
+      const dc={}; G.dead[s].forEach(tp=>dc[tp]=(dc[tp]||0)+1);
+      const dead = showDead ? TYPES.filter(tp=>dc[tp]).map(tp=>`<span class="dp ${s}">${LANG==='en'?NAME.enS[tp]:NAME.zh[tp]}${dc[tp]>1?`<i>×${dc[tp]}</i>`:''}</span>`).join('') : '';
+      const selP = Game.sel>=0 && G.board[Game.sel] && G.board[Game.sel].side===s ? G.board[Game.sel] : null;
+      let btns='';
+      const human = G.mode==='online' ? s===Online.mySide : !pl.ai;
+      if (human && G.phase==='setup' && !G.ready[s] && (G.mode==='ai' || !G.hidden || G.setupSide===s)){
+        btns = `<button class="btn ghost sm" onclick="Game.randomize('${s}')">${t('randomSetup')}</button>
+                <button class="btn ${s==='A'?'lime':'red'} sm" onclick="Game.ready('${s}')">${G.mode==='ai'?t('startNow'):t('finishSetup')}</button>`;
+      } else if (human && G.phase==='play'){
+        if (G.mode==='pvp' && G.hidden) btns += `<button class="btn ghost sm peek" id="peek-${s}">${t('peek')}</button>`;
+        if (G.mode==='pvp') btns += `<button class="btn ghost sm" onclick="Game.offerDraw('${s}')">${t('draw')}</button>`;
+        btns += `<button class="btn red sm" onclick="Game.resign('${s}')">${t('resign')}</button>`;
+        if (G.mode==='online' && Online.oppOffSince && Date.now()-Online.oppOffSince>20000) btns += `<button class="btn lime sm" onclick="Online.claimWin()">${t('claimWin')}</button>`;
+      }
+      el.innerHTML = `
+        <div class="p-head"><div class="p-dot">${pl.ai?'🤖':(s==='A'?'藍':'紅')}</div>
+          <div style="min-width:0"><div class="p-name">${esc(playerLabel(s))}${G.mode==='online'&&s===Online.mySide?t('you2'):''}</div><div class="p-sub">${esc(sub)}</div></div>
+          <div class="p-turn">${status}</div>${bottom?`<div class="p-tools"><button onclick="UI.toggleLang()">${LANG==='en'?'繁':'EN'}</button><button onclick="Snd.toggle()" title="SFX">${Snd.on?'🔊':'🔇'}</button><button onclick="Snd.toggleMusic()" title="Music" style="${Snd.musicOn?'':'opacity:.45'}">🎵</button><button onclick="UI.showRules()">?</button><button onclick="App.exitGame()">✕</button></div>`:''}</div>
+        <div class="p-info"><span class="chip">♟ ${t('left')} ${alive}</span><span class="chip">⏱ <span id="time-${s}">0:00</span></span>
+          ${G.mode==='online' && s!==Online.mySide ? `<span class="chip">${Online.oppOnline?t('online'):t('offline')}</span>`:''}
+          ${bottom?`<span class="chip">#${G.moves} ${t('moves')}</span>`:''}
+          ${G.rule==='flip' && G.phase!=='over' ? `<span class="chip">🂠 ${t('unflipped')} ${nfd}</span>`:''}
+          ${G.rule==='random' && G.phase!=='over' && bottom ? `<span class="chip">🂠 ${t('unflippedAll')} ${G.board.filter(p=>p&&p.fd).length}</span>`:''}
+          ${selP && selP.fd ? `<span class="chip" style="border-color:rgba(167,139,250,.6)">${t('flipChip')}</span>` : selP && (visibleTo(selP) || (G.mode==='pvp'&&G.hidden)) ? `<span class="chip" style="border-color:rgba(34,211,238,.5)">${t('selected')}: ${pname(selP.t)}</span>`:''}
+          ${G.phase==='setup' && !G.ready[s] && human ? `<span class="chip">💡 ${t('setupTip')}</span>`:''}</div>
+        ${dead?`<div class="p-dead"><span class="dl">☠ ${t('lost')}</span>${dead}</div>`:''}
+        ${btns?`<div class="p-btns">${btns}</div>`:''}
+        ${bottom && (G.log||[]).length ? `<div class="p-log">${G.log.slice(-12).reverse().map(l=>`<div class="${l.c}">${l.m}</div>`).join('')}</div>`:''}`;
+      const pk=document.getElementById('peek-'+s);
+      if (pk){ const on=e=>{ e.preventDefault(); Game.peek[s]=true; Board.draw(); }, off=()=>{ if(Game.peek[s]){ Game.peek[s]=false; Board.draw(); } };
+        pk.addEventListener('pointerdown',on); ['pointerup','pointerleave','pointercancel'].forEach(ev=>pk.addEventListener(ev,off)); }
+    }
+    this.panelTimes();
+  }
+};
+
+/* =========================== Firebase 線上對戰 =========================== */
+const FB = {
+  ready:false, db:null, uid:null, err:null, connecting:null,
+  configured(){ return !!(FIREBASE_CONFIG.databaseURL && FIREBASE_CONFIG.apiKey); },
+  init(){
+    if (this.ready) return Promise.resolve(true);
+    if (this.connecting) return this.connecting;
+    if (!this.configured() || !window.firebase) return Promise.resolve(false);
+    this.connecting = (async()=>{
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        const cred = await firebase.auth().signInAnonymously();      // 匿名登入：用戶完全無感
+        this.uid = cred.user.uid; this.db = firebase.database(); this.ready = true; return true;
+      } catch(e){ this.err = e; console.warn('Firebase', e); this.connecting=null; return false; }
+    })();
+    return this.connecting;
+  },
+  ref(path){ return this.db.ref(FB_ROOT + '/' + path); },
+  TS(){ return firebase.database.ServerValue.TIMESTAMP; }
+};
+
+const Online = {
+  room:null, mySide:null, meta:null, refs:[], lobbyRef:null, rule:'flip', syncing:false, oppOnline:true, oppOffSince:0, offTimer:null,
+  myName(){ const u=App.user||{}; if (u && !u.isGuest) return u.name || u.email; return ($('#olName').value||'').trim().slice(0,16); },
+  meInfo(name){ const u=App.user||{}; return { uid:FB.uid, name, cls:u.isGuest?'':(u.cls||''), no:u.isGuest?'':(u.no||''), school:!u.isGuest }; },
+  msg(html){ const m=$('#lobbyMsg'); m.style.display=html?'block':'none'; m.innerHTML=html||''; },
+  async openLobby(){
+    UI.show('lobby'); this.showWait(null);
+    const u=App.user||{}, nm=$('#olName');
+    if (u && !u.isGuest){ nm.value=u.name||u.email; nm.disabled=true; } else { nm.disabled=false; nm.value=LS.get('junqi_guest_name',''); }
+    nm.placeholder=t('namePh2'); $('#olRoom').placeholder=t('roomPh'); $('#olCode').placeholder=t('codePh');
+    document.querySelectorAll('#olRuleSeg button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===this.rule); b.onclick=()=>{ this.rule=b.dataset.v; document.querySelectorAll('#olRuleSeg button').forEach(x=>x.classList.toggle('on',x===b)); }; });
+    if (!FB.configured()){ $('#fbStatus').textContent='⚪'; this.msg('🔌 '+t('fbOff')); $('#lobbyMain').style.opacity=.4; return; }
+    $('#lobbyMain').style.opacity=1; $('#fbStatus').textContent=t('fbConnecting'); this.msg('');
+    if (!await FB.init()){ $('#fbStatus').textContent='🔴'; this.msg('⚠ '+esc(t('fbFail',{e:(FB.err&&(FB.err.code||FB.err.message))||'?'}))); return; }
+    $('#fbStatus').textContent=t('fbOk');
+    if (this.lobbyRef) this.lobbyRef.off();
+    this.lobbyRef = FB.ref('lobby').orderByChild('createdAt').limitToLast(60);
+    this.lobbyRef.on('value', snap=>this.renderRooms(snap.val()||{}), e=>this.msg('⚠ '+esc(e.message)));
+  },
+  closeLobby(){ if (this.lobbyRef){ this.lobbyRef.off(); this.lobbyRef=null; } },
+  renderRooms(obj){
+    const now=Date.now(), list=Object.entries(obj).filter(([id,r])=>r && r.status==='waiting' && (!r.createdAt || now-r.createdAt<3*3600e3)).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+    $('#roomList').innerHTML = list.length ? list.map(([id,r])=>`<div class="hist-row">
+        <div class="chip">${r.rule==='random'?'🎲 '+t('ruleRandomS'):'🔄 '+t('ruleFlipS')}</div>
+        <div style="min-width:0"><b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${esc(r.name)}</b><div class="lbl">${t('host')}：${esc(r.hostName)} · ${t('roomCode')} ${esc(r.code)}</div></div>
+        ${r.hostUid===FB.uid?'<span class="chip">⏳</span>':`<button class="btn sm" onclick="Online.join('${esc(id)}')">${t('join')}</button>`}</div>`).join('')
+      : `<div class="lbl" style="text-align:center;padding:14px">${t('noRooms')}</div>`;
+  },
+  checkName(){ const n=this.myName(); if (!n){ Pop.fire({ icon:'warning', title:t('needName') }); $('#olName').focus(); return ''; } if (App.user && App.user.isGuest) LS.set('junqi_guest_name', n); return n; },
+  showWait(html){ const w=$('#waitCard'); w.style.display=html?'flex':'none'; w.innerHTML=html||''; $('#lobbyMain').style.display=html?'none':'flex'; },
+  watch(ref, ev, fn){ ref.on(ev, fn); this.refs.push([ref, ev, fn]); },
+  unwatch(){ this.refs.forEach(([r,e,f])=>r.off(e,f)); this.refs=[]; },
+  async create(){
+    const name=this.checkName(); if (!name) return;
+    const rn=($('#olRoom').value||'').trim().slice(0,20); if (!rn){ Pop.fire({ icon:'warning', title:t('needRoomName') }); return; }
+    if (!await FB.init()) return;
+    const id=FB.ref('rooms').push().key, code=String(Math.floor(1000+Math.random()*9000));
+    const meta={ name:rn, code, rule:this.rule, status:'waiting', host:this.meInfo(name), createdAt:FB.TS() };
+    try {
+      await FB.ref('rooms/'+id).set({ meta });
+      await FB.ref('lobby/'+id).set({ name:rn, code, rule:this.rule, hostName:name, hostUid:FB.uid, status:'waiting', createdAt:FB.TS() });
+    } catch(e){ return Pop.fire({ icon:'error', title:t('error'), text:e.message }); }
+    FB.ref('lobby/'+id).onDisconnect().remove(); FB.ref('rooms/'+id).onDisconnect().remove();
+    this.room=id; this.mySide='A';
+    this.showWait(`<div class="spin"></div><div style="font-size:20px;font-weight:900">${esc(rn)}</div>
+      <div class="lbl">${t('roomCode')}</div><div class="neon" style="font-size:46px;letter-spacing:.2em">${code}</div>
+      <div>${t('waitingOpp')}</div><div class="lbl">${t('shareCode')}</div>
+      <button class="btn ghost" onclick="Online.cancel()">${t('cancelRoom')}</button>`);
+    Server.call('apiLog','online_create', rn+' '+code).catch(()=>{});
+    this.watch(FB.ref('rooms/'+id+'/meta'), 'value', snap=>{ const m=snap.val(); if (m && m.guest && m.status==='waiting' && this.room===id && !G) this.startAsHost(m); });
+  },
+  async cancel(){
+    const id=this.room; this.unwatch();
+    if (id && this.mySide==='A'){ FB.ref('lobby/'+id).remove().catch(()=>{}); FB.ref('rooms/'+id).remove().catch(()=>{}); }
+    this.room=null; this.mySide=null; this.showWait(null);
+  },
+  async joinByCode(){
+    const code=($('#olCode').value||'').trim(); if (!/^\d{4}$/.test(code)) return Pop.fire({ icon:'warning', title:t('codeNotFound') });
+    if (!await FB.init()) return;
+    const snap=await FB.ref('lobby').orderByChild('code').equalTo(code).once('value'); const v=snap.val()||{};
+    const hit=Object.entries(v).find(([id,r])=>r.status==='waiting');
+    if (!hit) return Pop.fire({ icon:'warning', title:t('codeNotFound') });
+    this.join(hit[0]);
+  },
+  async join(id){
+    const name=this.checkName(); if (!name) return;
+    if (!await FB.init()) return;
+    const me=this.meInfo(name);
+    let res; try { res = await FB.ref('rooms/'+id+'/meta/guest').transaction(cur => cur ? undefined : me); }
+    catch(e){ return Pop.fire({ icon:'warning', title:t('roomFull') }); }
+    if (!res.committed) return Pop.fire({ icon:'warning', title:t('roomFull') });
+    this.room=id; this.mySide='B';
+    FB.ref('rooms/'+id+'/meta/guest').onDisconnect().remove();
+    this.showWait(`<div class="spin"></div><div style="font-weight:900">${t('joining')}</div><button class="btn ghost" onclick="Online.cancelJoin()">${t('cancel')}</button>`);
+    Server.call('apiLog','online_join', id).catch(()=>{});
+    this.watchRoom();
+  },
+  async cancelJoin(){ const id=this.room; this.unwatch(); if (id) await FB.ref('rooms/'+id+'/meta/guest').remove().catch(()=>{}); this.room=null; this.mySide=null; this.showWait(null); },
+  async startAsHost(m){
+    const id=this.room;
+    FB.ref('rooms/'+id).onDisconnect().cancel(); FB.ref('lobby/'+id).onDisconnect().cancel();
+    FB.ref('lobby/'+id).remove().catch(()=>{});
+    const pl = x => ({ name:x.name, cls:x.cls||'', no:x.no||'', uid:x.uid });
+    newGame('online', { rule:m.rule, players:{ A:pl(m.host), B:pl(m.guest) } });
+    G.online=true; G.room=id; G.phase='play'; G.first=Math.random()<.5?'A':'B'; G.turn=G.first; G.start=Date.now(); G.turnStart=Date.now(); G.seq=1;
+    const json=JSON.stringify(G); G=null;          // 由 onState 統一開局（雙方同一流程）
+    await FB.ref('rooms/'+id+'/state').set({ seq:1, action:{ t:'start', by:FB.uid }, json });
+    await FB.ref('rooms/'+id+'/meta/status').set('playing');
+    this.watchRoom();
+  },
+  watchRoom(){
+    const id=this.room;
+    this.watch(FB.ref('rooms/'+id+'/state'), 'value', snap=>this.onState(snap.val()));
+    this.watch(FB.ref('rooms/'+id+'/meta'), 'value', snap=>{ if (!snap.val() && this.room===id){ this.unwatch(); if (!G){ this.room=null; this.showWait(null); Pop.fire({ icon:'info', title:t('roomGone') }); } } });
+    const myP=FB.ref('rooms/'+id+'/presence/'+this.mySide); myP.set(true); myP.onDisconnect().set(false);
+    this.watch(FB.ref('rooms/'+id+'/presence/'+other(this.mySide)), 'value', snap=>{
+      const on = snap.val()!==false; if (on===this.oppOnline) return;
+      this.oppOnline=on; this.oppOffSince = on ? 0 : Date.now();
+      clearTimeout(this.offTimer); if (!on) this.offTimer=setTimeout(()=>{ if (G) UI.panels(); }, 21000);
+      if (G && G.phase==='play'){ UI.panels(); if (!on) UI.toast(t('oppLeft'),'bad'); }
+    });
+  },
+  adopt(s){
+    const keep = (G && G.mode==='online') ? G : null;
+    G = JSON.parse(s.json); G.seq=s.seq; G.online=true; G.room=this.room; G.turnStart=Date.now();
+    Board.flipView = (this.mySide==='B');
+    if (!keep){ if (this.mySide==='B') FB.ref('rooms/'+this.room+'/meta/guest').onDisconnect().cancel();
+      Game.start(); this.showWait(null); this.closeLobby();
+      Snd.start(); Pop.fire({ icon:'info', title:t('firstMove',{who:sideWho(G.turn)}), text:t(G.rule==='random'?'randomStart':'flipStart'), timer:2200, showConfirmButton:false }); }
+    else { Game.sel=-1; Game.targets=[]; Board.draw(); UI.panels(); }
+  },
+  async onState(s){
+    if (!s) return;
+    if (!G || G.mode!=='online' || G.room!==this.room){ if (this.room) this.adopt(s); return; }
+    if (s.seq <= (G.seq||0)) return;
+    const a=s.action||{};
+    if (s.seq===(G.seq||0)+1 && a.by!==FB.uid && G.phase==='play'){
+      this.syncing=true;
+      try {
+        if (a.t==='move') await Game.doMove(a.from, a.to, { remote:true });
+        else if (a.t==='flip') await Game.flip(a.i, { remote:true });
+        else if (a.t==='end'){ const r=JSON.parse(s.json); G.seq=s.seq; this.syncing=false; return Game.finish(r.winner, r.reason); }
+      } finally { this.syncing=false; }
+      if (G && G.mode==='online'){
+        G.seq=s.seq;
+        const r=JSON.parse(s.json), sig=b=>b.map(p=>p?p.side+p.t+(p.fd?1:0):'-').join('');
+        if (G.phase!=='over' && (sig(r.board)!==sig(G.board) || r.turn!==G.turn)) this.adopt(s);   // 保險：以伺服器狀態為準
+      }
+      return;
+    }
+    this.adopt(s);
+    if (G.phase==='over') Game.finish(G.winner, G.reason);
+  },
+  push(action, fin){
+    if (!this.room || !G) return;
+    const copy=JSON.parse(JSON.stringify(G));
+    if (fin){ copy.phase='over'; copy.winner=fin[0]; copy.reason=fin[1]; }
+    G.seq=(G.seq||0)+1;
+    FB.ref('rooms/'+this.room+'/state').set({ seq:G.seq, action:Object.assign({ by:FB.uid }, action), json:JSON.stringify(copy) })
+      .catch(e=>Pop.toast(t('netErr')+' '+e.message,'error'));
+  },
+  claimWin(){ if (!G || G.phase!=='play') return; this.push({ t:'end' }, [this.mySide,'left']); Game.finish(this.mySide,'left'); },
+  leave(){
+    const id=this.room; this.unwatch(); clearTimeout(this.offTimer);
+    if (id){ FB.ref('rooms/'+id+'/presence/'+this.mySide).set(false).catch(()=>{}); FB.ref('rooms/'+id+'/presence/'+this.mySide).onDisconnect().cancel();
+      if (this.mySide==='A') setTimeout(()=>FB.ref('rooms/'+id).remove().catch(()=>{}), 4000); }   // 房主離開：清理房間
+    this.room=null; this.mySide=null; this.oppOnline=true; this.oppOffSince=0; Board.flipView=false;
+  }
+};
+
+/* =========================== App =========================== */
+const App = {
+  user:null, save:null, roster:[], demo:false, difficulty:'normal', vis:'flip', aiRule:'flip', lastRec:null, lastPvp:null,
+  async boot(){
+    Board.init();
+    LANG = LS.get('junqi_lang','zh'); UI.applyLang();
+    let res;
+    try { res = await Server.call('apiBootstrap'); }
+    catch(e){ console.error(e); res = { ok:true, user:{email:'',name:'',isGuest:true}, save:null, roster:[] }; Pop.toast(t('netErr'),'error'); }
+    if (!res.ok){ $('#screen-loading').innerHTML = `<div class="glass" style="padding:24px;max-width:420px;text-align:center"><div style="font-size:40px">🔒</div><b>Access denied</b><div class="lbl">${esc(res.email||'')}</div></div>`; return; }
+    if (res.expired){ Auth.session=''; LS.set('junqi_session',''); }
+    document.querySelectorAll('#diffSeg button').forEach(b=> b.onclick=()=>{ this.difficulty=b.dataset.v; this.renderHome(); this.saveSettings(); });
+    document.querySelectorAll('#visSeg button').forEach(b=> b.onclick=()=>{ this.vis=b.dataset.v; this.fillPvp(true); });
+    document.querySelectorAll('#aiRuleSeg button').forEach(b=> b.onclick=()=>{ this.aiRule=b.dataset.v; this.renderHome(); this.saveSettings(); });
+    document.addEventListener('visibilitychange', ()=>{ if (document.hidden && G && G.phase!=='over') Game.saveNow();
+      if (Snd.ctx){ if (document.hidden) Snd.ctx.suspend(); else if (Snd.on || Snd.musicOn) Snd.ctx.resume(); } });
+    // 所有按鈕音效 + 首次觸碰啟動音訊（iPad / 瀏覽器規定要用戶操作先可以播聲）
+    document.addEventListener('pointerdown', e=>{
+      Snd.unlock();
+      const el=e.target.closest('button,select,.card-mode'); if (!el || el.id==='homeSnd' || (el.getAttribute('onclick')||'').includes('Snd.toggle()')) return;
+      if (el.closest('.seg')) Snd.tab(); else Snd.click();
+    }, true);
+    await this.applyBoot(res);
+    Auth.init();
+  },
+  async applyBoot(res){
+    this.demo = !!res.demo; this.user = res.user; this.roster = res.roster||[];
+    if (this.user.isGuest) { this.user.email=''; this.save = Local.get('guest'); } else this.save = res.save || Local.defaultSave();
+    const st=this.save.settings||{}; if (st.lang) LANG=st.lang; if (st.difficulty) this.difficulty=st.difficulty; if (st.aiRule) this.aiRule=st.aiRule; if (st.pvpRule) this.vis=st.pvpRule; Snd.on = st.sound!==false; Snd.musicOn = st.music!==false;
+    UI.applyLang(); if (!G) UI.show('home'); Auth.renderBtn();
+    const nm = this.user.name || t('guest');
+    if (this.save.current && this.save.current.phase && this.save.current.phase!=='over'){
+      const r = await Pop.fire({ icon:'info', title:t('welcome',{name:esc(nm)}), text:t('resumeQ'), showCancelButton:true, confirmButtonText:t('continueBtn'), cancelButtonText:t('newBtn') });
+      if (r.isConfirmed) this.resume();
+    } else if (this.save.stats && this.save.stats.games>0){
+      Pop.toast(t('welcome',{name:nm}) + ` (${this.save.stats.wins}W/${this.save.stats.games})`, 'success');
+    } else Pop.toast(t('welcomeNew',{name:nm}), 'success');
+  },
+  /* 完局後：訪客可輸入電郵記錄成績（可跳過） */
+  async askGuestRecord(match, gm){
+    if (!GAS_URL || !App.user || !App.user.isGuest) return;
+    let sides = gm.mode==='ai' ? ['A'] : gm.mode==='online' ? [Online.mySide] : ['A','B'];
+    for (const s of sides){
+      const pl=match.players[s]||{}, opp=match.players[other(s)]||{};
+      const r = await Pop.fire({ icon:'question', title: sides.length>1 ? t('recordFor',{name:esc(pl.name||sideLabel(s))}) : t('recordQ'), text:t('recordText'),
+        input:'email', inputValue: LS.get('junqi_guest_email_'+s, LS.get('junqi_guest_email','')), inputPlaceholder:'name@example.com',
+        showCancelButton:true, confirmButtonText:t('recordBtn'), cancelButtonText:t('skip'),
+        inputValidator: v => (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((v||'').trim()) ? undefined : t('badEmail')) }, gm.mode==='pvp' ? s : undefined);
+      if (!r.isConfirmed || !r.value) continue;
+      const email=r.value.trim().toLowerCase(); LS.set('junqi_guest_email', email); LS.set('junqi_guest_email_'+s, email);
+      const result = match.winner==='draw' ? 'draw' : (match.winner===s ? 'win' : 'lose');
+      try { const res = await Remote.post('guestRecord', [{ email, name:pl.name||'', mode:match.mode, rule:match.rule, result,
+          opponent: opp.ai ? 'AI' : (opp.name||''), moves:match.moves, durationSec:match.durationSec, id:match.id }]);
+        if (res && res.ok) Pop.toast(t('recorded'),'success'); else Pop.toast(t('error')+' '+((res&&res.error)||''),'error');
+      } catch(e){ Pop.toast(t('netErr'),'error'); }
+    }
+  },
+  saveSettings(){
+    LS.set('junqi_lang', LANG);
+    if (!this.save) return; this.save.settings = { lang:LANG, difficulty:this.difficulty, sound:Snd.on, music:Snd.musicOn, aiRule:this.aiRule, pvpRule:this.vis };
+    clearTimeout(this._st); this._st=setTimeout(()=>Server.call('apiSaveState',{settings:this.save.settings}).catch(()=>{}), 1200);
+  },
+  renderStats(){
+    const s=(this.save&&this.save.stats)||{}; const wr = s.games? Math.round(s.wins/s.games*100):0;
+    $('#statStrip').innerHTML = [[t('games'),s.games||0],[t('wins'),s.wins||0],[t('winRate'),wr+'%'],[t('streak'),s.streak||0],[t('best'),s.bestStreak||0]]
+      .map(([k,v])=>`<div class="glass stat"><b>${v}</b><span>${k}</span></div>`).join('');
+  },
+  renderHome(){
+    const u=this.user||{};
+    $('#userChip').textContent = u.isGuest ? '👤 '+t('guest') : `👤 ${u.cls?u.cls+'-'+u.no+' ':''}${u.name||u.email}`;
+    document.querySelectorAll('#diffSeg button').forEach(b=>b.classList.toggle('on', b.dataset.v===this.difficulty));
+    $('#homeSnd').textContent = Snd.on?'🔊':'🔇'; $('#homeMus').style.opacity = Snd.musicOn?'1':'.45';
+    document.querySelectorAll('#aiRuleSeg button').forEach(b=>b.classList.toggle('on', b.dataset.v===this.aiRule));
+    $('#resumeCard').style.display = (this.save && this.save.current && this.save.current.phase!=='over') ? 'flex':'none';
+    $('#footNote').textContent = this.demo ? t('demoNote') : (u.isGuest ? (Auth.enabled() ? t('guestLoginNote') : t('guestNote')) : (u.email||''));
+    this.renderStats();
+  },
+  selfPlayer(){ const u=this.user||{}; return { cls:u.cls||'', no:u.no||'', name:u.name||t('you'), self:true }; },
+  startAI(){
+    newGame('ai', { rule:this.aiRule, difficulty:this.difficulty, players:{ A:this.selfPlayer(), B:{ ai:true, name:t('aiName') } } });
+    Game.start();
+  },
+  fillPvp(keep){
+    const hasRoster = this.roster.length>0;
+    for (const s of ['A','B']){ const nm=$('#p'+s+'-name'); nm.style.display=hasRoster?'none':''; nm.placeholder=t('namePh');
+      $('#p'+s+'-cls').style.display=hasRoster?'':'none'; $('#p'+s+'-no').style.display=hasRoster?'':'none';
+      $('#p'+s+'-cls').previousElementSibling.style.display=hasRoster?'':'none'; $('#p'+s+'-no').previousElementSibling.style.display=hasRoster?'':'none'; }
+    const classes=[...new Set(this.roster.map(s=>s.cls))].sort();
+    const fillSide=(s, defCls, defNo)=>{
+      const cSel=$('#p'+s+'-cls'), nSel=$('#p'+s+'-no');
+      const curC = keep ? cSel.value : defCls, curN = keep ? nSel.value : defNo;
+      cSel.innerHTML = `<option value="">${t('guestOpt')}</option>` + classes.map(c=>`<option ${c===curC?'selected':''}>${esc(c)}</option>`).join('');
+      const fillNo=()=>{ const c=cSel.value; const list=this.roster.filter(x=>x.cls===c).sort((a,b)=>(+a.no||0)-(+b.no||0));
+        nSel.innerHTML = c ? `<option value="">${t('pickStudent')}</option>`+list.map(x=>`<option value="${esc(x.no)}" ${x.no===curN&&c===curC?'selected':''}>${esc(x.no)}　${esc(x.name)}</option>`).join('') : `<option value="">—</option>`;
+        nSel.disabled=!c; };
+      cSel.onchange=()=>{ fillNo(); }; fillNo();
+    };
+    const u=this.user||{};
+    fillSide('A', u.cls||'', u.no||''); fillSide('B','','');
+    document.querySelectorAll('#visSeg button').forEach(b=>b.classList.toggle('on', b.dataset.v===this.vis));
+  },
+  readPvpPlayer(s){
+    const c=$('#p'+s+'-cls').value, n=$('#p'+s+'-no').value; const u=this.user||{};
+    if (!this.roster.length){ const nm=($('#p'+s+'-name').value||'').trim().slice(0,16); return { cls:'', no:'', name: nm || (s==='A'?t('blue'):t('red')), self: s==='A' && u.isGuest, guest:true }; }
+    if (!c || !n) return { cls:'', no:'', name: s==='A'?t('blue'):t('red'), self:false, guest:true };
+    const st=this.roster.find(x=>x.cls===c && x.no===n)||{};
+    return { cls:c, no:n, name:st.name||`${c}-${n}`, self: !u.isGuest && u.cls===c && u.no===n };
+  },
+  async startPvp(again){
+    let players;
+    if (again && this.lastPvp) players=this.lastPvp;
+    else {
+      const A=this.readPvpPlayer('A'), B=this.readPvpPlayer('B');
+      if (A.cls && B.cls && A.cls===B.cls && A.no===B.no){ return Pop.fire({icon:'warning', title:t('sameStudent')}); }
+      players={A,B}; this.lastPvp=players;
+    }
+    newGame('pvp', { rule: (this.vis==='flip'||this.vis==='random')?this.vis:'classic', hidden:this.vis==='hidden', players }); this.saveSettings();
+    Game.start();
+  },
+  resume(){
+    const cur=this.save && this.save.current; if (!cur) return;
+    G=cur; PID = Math.max(PID, ...G.board.filter(Boolean).map(p=>p.id));
+    G.turnStart=Date.now(); if (G.mode==='pvp' && G.players) this.lastPvp=G.players;
+    Game.start();
+  },
+  async exitGame(){
+    if (!G || G.phase==='over'){ if (G && G.mode==='online') Online.leave(); G=null; UI.show('home'); return; }
+    if (G.mode==='online'){
+      const r = await Pop.fire({ icon:'warning', title:t('leaveResign'), showCancelButton:true, confirmButtonText:t('exit'), cancelButtonText:t('cancel') });
+      if (!r.isConfirmed || !G) return;
+      Online.push({ t:'end' }, [other(Online.mySide), 'resign']); Online.leave(); clearInterval(Game.tick); G=null; UI.show('home'); return;
+    }
+    const r = await Pop.fire({ icon:'question', title:t('exitConfirm'), showCancelButton:true, confirmButtonText:t('exit'), cancelButtonText:t('cancel') });
+    if (!r.isConfirmed) return;
+    Game.saveNow(); clearInterval(Game.tick); G=null; UI.show('home');
+  },
+  async openRecords(){
+    UI.show('records'); $('#recTitle').textContent=t('records');
+    const render=()=>{ $('#recTitle').textContent=t('records'); const s=this.save||{}; const st=s.stats||{}; const h=s.history||[];
+      const wr = st.games? Math.round(st.wins/st.games*100):0;
+      $('#recBody').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px">
+        ${[[t('games'),st.games||0],[t('wins'),st.wins||0],[t('losses'),st.losses||0],[t('draws'),st.draws||0],[t('winRate'),wr+'%'],[t('best'),st.bestStreak||0]].map(([k,v])=>`<div class="glass stat"><b>${v}</b><span>${k}</span></div>`).join('')}</div>
+        ${h.length? h.map(x=>{ const d=new Date(x.at); const opp = x.opponent ? (x.opponent.ai ? t('aiName') : [x.opponent.cls&&x.opponent.no?x.opponent.cls+'-'+x.opponent.no:'', x.opponent.name].filter(Boolean).join(' ')) : '—';
+          const rl = x.result==='win'?t('win'):x.result==='lose'?t('lose'):t('drawRes');
+          return `<div class="hist-row"><div class="chip">${x.mode==='ai'?'🤖 '+t('modeAI'):x.mode==='online'?'🌐 '+t('modeOnline'):'👥 '+t('modePvp')}</div>
+            <div style="min-width:0"><div style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t('vs')} ${esc(opp)}</div>
+            <div class="lbl">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} · ${x.moves} ${t('moves')} · ${fmtTime(x.durationSec)}${x.mode==='ai'&&x.difficulty?' · '+t({easy:'dEasy',normal:'dNormal',hard:'dHard'}[x.difficulty]):''}${x.rule?' · '+t({flip:'ruleFlipS',random:'ruleRandomS',classic:'ruleClassicS'}[x.rule]||'ruleClassicS'):''}</div></div>
+            <div class="res-${x.result}" style="font-weight:900">${rl}</div></div>`; }).join('') : `<div class="glass" style="padding:24px;text-align:center">${t('noHistory')}</div>`}`; };
+    this.lastRec=render; render();
+    try { const r=await Server.call('apiGetSave'); if (r && r.ok && r.save){ this.save=r.save; render(); } } catch(e){}
+  }
+
+};
+
+window.addEventListener('error', e=>{ try{ Server.call('apiLog','error', String(e.message).slice(0,200)).catch(()=>{}); }catch(_){} });
+window.addEventListener('load', ()=>App.boot());
+</script>
+</body>
+</html>
